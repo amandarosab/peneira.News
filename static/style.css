@@ -1,0 +1,315 @@
+/* IMPORTAÇÃO DE FONTES */
+@import url('https://fonts.googleapis.com/css2?family=Trocchi&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Abril+Fatface&display=swap');
+
+/* VARIÁVEIS DE CORES DO SEU DESIGN */
+:root {
+    --primary-orange: #fd7506;
+    --dark-orange: #d76100;
+    --text-dark: #272730;
+    --text-gray: #4c4b4b;
+    --bg-white: #ffffff;
+    --badge-bg: #ffdfc4;
+}
+
+/* RESET GERAL */
+* { 
+    margin: 0; 
+    padding: 0; 
+    box-sizing: border-box; 
+}
+
+body {
+    background-color: var(--bg-white);
+    color: var(--text-gray);
+    font-family: 'Trocchi', serif;
+    line-height: 1.6;
+}
+
+/* --- ALINHAMENTO GERAL (CONTAINER) --- */
+/* Cria uma linha guia invisível para tudo ficar perfeitamente alinhado à esquerda e direita */
+.container {
+    max-width: 1300px;
+    margin: 0 auto;
+    padding: 0 40px;
+}
+
+/* --- CABEÇALHO --- */
+.header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center; /* Centraliza logo e menu verticalmente */
+    padding-top: 40px;
+    padding-bottom: 20px;
+}
+
+.logo-section { 
+    display: flex; 
+    flex-direction: column; 
+    margin-top: 30px;
+    align-items: flex-start; 
+}
+
+.logo {
+    font-family: 'TAN Nimbus', 'Abril Fatface', serif; 
+    font-size: 3.8rem;
+    color: var(--text-dark);
+    line-height: 1;
+    margin-bottom: 25px;
+    letter-spacing: -1px;
+}
+
+.slogan-badge {
+    background-color: var(--badge-bg);
+    color: var(--text-dark);
+    padding: 6px 16px;
+    border-radius: 8px;
+    font-size: 1.05rem;
+    white-space: nowrap; /* IMPEDE A QUEBRA DE LINHA INDESEJADA */
+}
+
+.main-nav ul {
+    list-style: none;
+    display: flex;
+    gap: 25px; /* Espaço entre os itens do menu */
+    align-items: left;
+}
+
+.main-nav a {
+    text-decoration: none;
+    color: var(--text-dark);
+    font-size: 1.05rem;
+    text-transform: uppercase;
+    white-space: nowrap; /* IMPEDE QUE "CULTURA E TECH" QUEBRE AO MEIO */
+    transition: color 0.2s;
+}
+
+.main-nav a.active {
+    color: var(--primary-orange);
+    border-bottom: 2px solid var(--primary-orange);
+    padding-bottom: 3px;
+}
+
+/* --- BARRA DE BUSCA --- */
+.search-section {
+    margin-bottom: 50px;
+    margin-top: 50px;   
+}
+
+.search-bar {
+    display: flex;
+    align-items: center;
+    background-color: var(--bg-white);
+    border-radius: 40px;
+    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.08); /* Sombra suave do mockup */
+    width: 100%;
+    max-width: 450px; /* Largura idêntica à do Figma */
+    padding: 8px 25px;
+}
+
+.search-bar input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-family: 'Trocchi', serif;
+    font-size: 1.1rem;
+    color: var(--text-gray);
+    padding: 10px 0;
+}
+
+.search-bar input::placeholder { 
+    color: #aaa; 
+}
+
+.search-bar button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--primary-orange);
+    font-size: 1.5rem;
+}
+
+/* --- CARDS DE NOTÍCIAS --- */
+.main-content {
+    padding-bottom: 80px;
+}
+
+.articles-list {
+    display: flex;
+    flex-direction: column;
+    gap: 70px; /* Espaço entre uma matéria e outra */
+}
+
+.news-card {
+    display: flex;
+    gap: 40px;
+    align-items: flex-start; /* Impede que a caixa estique verticalmente sozinha */
+}
+
+.news-image-placeholder {
+    width: 420px;
+    height: 280px;
+    border: 1px solid #ddd;
+    background-color: #fafafa;
+    flex-shrink: 0; /* IMPEDE QUE O TEXTO ESPREMA A IMAGEM */
+}
+
+.news-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0; /* SEGREDO DO FLEXBOX: impede que títulos longos quebrem o layout */
+}
+
+.news-header {
+    display: flex;
+    align-items: baseline;
+    gap: 15px;
+    margin-bottom: 15px;
+    flex-wrap: wrap; /* Permite ajuste em telas menores, mas não quebra se tiver espaço */
+}
+
+.news-title {
+    font-family: 'TAN Nimbus', 'Abril Fatface', serif;
+    font-size: 2.6rem;
+    color: var(--primary-orange);
+    font-weight: normal;
+    line-height: 1.1;
+    margin-right: 10px;
+}
+
+.external-link {
+    font-family: 'Trocchi', serif;
+    color: var(--primary-orange);
+    text-decoration: underline;
+    font-size: 1.15rem;
+    white-space: nowrap; /* IMPEDE O ÍCONE DE SEPARAR DO TEXTO */    
+}
+
+.context-title {
+    font-size: 1.35rem;
+    color: var(--text-dark);
+    margin-bottom: 12px;
+}
+
+.bullet-list {
+    padding-left: 25px;
+    margin-bottom: 25px;
+    font-size: 1.25rem;
+    color: var(--text-dark);
+}
+
+.bullet-list li { 
+    margin-bottom: 8px; 
+}
+
+.news-meta {
+    display: flex;
+    gap: 30px;
+    color: var(--text-gray);
+    font-size: 1.05rem;
+    margin-top: auto;
+}
+
+.news-meta i {
+    color: var(--primary-orange);
+    margin-right: 6px;
+}
+
+/* --- RODAPÉ --- */
+.footer-container {
+    background-color: var(--dark-orange);
+    position: relative;
+    padding-bottom: 15px;
+}
+
+.footer-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--bg-white);
+    padding-top: 60px;
+    padding-bottom: 50px;
+    padding-left: 2px;
+    padding-right: 2px;    
+}
+
+.footer-left, .footer-right {
+    flex: 1;
+}
+
+.footer-logo {
+    font-family: 'TAN Nimbus', 'Abril Fatface', serif;
+    font-size: 3.5rem;
+    margin-bottom: 5px;
+    line-height: 1;
+}
+
+.footer-slogan {
+    font-size: 1.15rem;
+    margin-bottom: 15px;
+}
+
+.footer-slogan .highlight { 
+    text-decoration: underline; 
+}
+
+.copyright { 
+    font-size: 0.9rem; 
+    opacity: 0.9;
+}
+
+.footer-right { 
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end; /* Alinha o formulário à direita */
+}
+
+.newsletter-title {
+    font-family: 'TAN Nimbus', 'Abril Fatface', serif;
+    font-size: 1.8rem;
+    margin-bottom: 15px;
+    font-weight: normal;
+    text-align: right;
+}
+
+.newsletter-form {
+    display: flex;
+    background-color: var(--bg-white);
+    padding: 6px 6px 6px 20px;
+    border-radius: 40px;
+    width: 100%;
+    max-width: 450px;
+}
+
+.newsletter-form input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-family: 'Trocchi', serif;
+    font-size: 1.05rem;
+}
+
+.newsletter-form button {
+    background-color: var(--primary-orange);
+    color: var(--bg-white);
+    border: none;
+    padding: 12px 28px;
+    border-radius: 30px;
+    font-family: 'Trocchi', serif;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 1.05rem;
+}
+
+/* Efeito Sanfona (Zig-zag) do rodapé em CSS puro */
+.footer-zigzag {
+    height: 12px;
+    width: 100%;
+    background-image: linear-gradient(135deg, var(--bg-white) 25%, transparent 25%), linear-gradient(225deg, var(--bg-white) 25%, transparent 25%);
+    background-position: left bottom;
+    background-size: 24px 24px;
+    background-repeat: repeat-x;
+    position: absolute;
+    bottom: 0;
+}

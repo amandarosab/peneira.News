@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peneira News</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <header class="header-container container">
+        <div class="logo-section">
+            <h1 class="logo">peneira.<span>NEWS</span></h1>
+            <div class="slogan-badge">Filtramos o ruído, você consome somente o necessário!</div>
+        </div>
+        
+        <nav class="main-nav">
+            <ul>
+                <li><a href="#" class="active">INÍCIO</a></li>
+                <li><a href="#">CULTURA E TECH</a></li>
+                <li><a href="#">POLÍTICA</a></li>
+                <li><a href="#">ECONOMIA</a></li>
+                <li><a href="#">CURIOSIDADES</a></li>
+                <li><a href="#">SOBRE</a></li>
+                <li><a href="#">CONTATO</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <section class="search-section container">
+        <div class="search-bar">
+            <input type="text" placeholder="Insira o seu link externo aqui...">
+            <button type="button"><i class="fa-solid fa-magnifying-glass"></i></button>
+        </div>
+    </section>
+
+    <main class="main-content container">
+        <section class="articles-list">
+            
+            {% for noticia in noticias %}
+            <article class="news-card">
+                <div class="news-image-placeholder"></div>
+                
+                <div class="news-content">
+                    <div class="news-header">
+                        <h2 class="news-title">{{ noticia.titulo }}</h2>
+                        <a href="{{ noticia.link_original }}" target="_blank" class="external-link">
+                            <i class="fa-solid fa-link"></i> Acessar o site oficial
+                        </a>
+                    </div>
+                    
+                    <p class="context-title">Contexto resumido:</p>
+                    <ul class="bullet-list">
+                        {% for bullet in noticia.bullets %}
+                            <li>{{ bullet }}</li>
+                        {% endfor %}
+                    </ul>
+                    
+                    <div class="news-meta">
+                        <span><i class="fa-regular fa-calendar"></i> {{ noticia.data }}</span>
+                        <span><i class="fa-regular fa-clock"></i> {{ noticia.tempo_leitura }}</span>
+                    </div>
+                </div>
+            </article>
+            {% endfor %}
+
+        </section>
+    </main>
+
+    <footer class="footer-container">
+        <div class="footer-content container">
+            <div class="footer-left">
+                <h2 class="footer-logo">peneira.<span>NEWS</span></h2>
+                <p class="footer-slogan">Filtramos o ruído, você consome somente o <span class="highlight">necessário!</span></p>
+                <p class="copyright">© 2026 Peneira News. Todos os direitos reservados. Desenvolvido por Los Coders</p>
+            </div>
+            
+            <div class="footer-right">
+                <h3 class="newsletter-title">Receba direto na sua caixa de entrada</h3>
+                <form class="newsletter-form">
+                    <input type="email" placeholder="Insira o seu e-mail aqui" required>
+                    <button type="submit">INSCREVA-SE</button>
+                </form>
+            </div>
+        </div>
+        <div class="footer-zigzag"></div>
+    </footer>
+
+</body>
+</html>
