@@ -80,7 +80,7 @@ def buscar_noticias_automaticamente():
                         "fonte": fonte["nome"],
                         "bullets": formatar_para_tdah(entry.description),
                         "data": data_hoje,
-                        "tempo_leitura": "3 min" # Simulado
+                        "tempo_leitura": "3 min" # Simulador
                     }
                     noticias_peneiradas.append(noticia)
             except Exception as e:
@@ -102,7 +102,7 @@ def home():
         cache_noticias["dados"] = buscar_noticias_automaticamente()
         cache_noticias["ultima_atualizacao"] = tempo_atual
 
-    # Envia as notícias reais para o seu HTML
+    # Envia as notícias reais para o HTML
     return render_template('index.html', noticias=cache_noticias["dados"])
 
 @app.route('/peneirar', methods=['POST'])
