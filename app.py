@@ -62,7 +62,7 @@ def limitar_requisicoes():
 # ==========================================
 FONTES_RSS = {
     "CULTURA E TECH": [
-        {"nome": "G1 Tecnologia", "url": "https://g1.globo.com/rss/g1/tecnologia/"},
+        {"nome": "G1", "url": "https://g1.globo.com/rss/g1/tecnologia/"},
     ],
     "POLÍTICA": [
         {"nome": "Folha de S.Paulo", "url": "https://feeds.folha.uol.com.br/poder/rss091.xml"},

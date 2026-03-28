@@ -341,6 +341,15 @@ body {
     opacity: 0.9;
 }
 
+.footer-link {
+    color: var(--bg-white);
+    text-decoration: underline;
+}
+
+.footer-link:hover {
+    opacity: 0.8;
+}
+
 .footer-right { 
     display: flex;
     flex-direction: column;
