@@ -151,7 +151,7 @@ elif selection == "SOBRE":
 
 elif selection == "CONTATO":
     st.markdown("## Contato")
-    st.write("Fale conosco: contato@peneira.news")
+    st.write("Fale conosco: amandabelo.contato@outlook.com")
 
 # Space before footer
 st.markdown("<br><br><br>", unsafe_allow_html=True)
