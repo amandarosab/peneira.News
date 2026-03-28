@@ -1,10 +1,59 @@
-from flask import Flask, render_template, request
-import feedparser
-from bs4 import BeautifulSoup
+import os
+import re
 import time
+import logging
 from datetime import datetime
+from urllib.parse import urlparse
 
+import feedparser
+import requests
+from bs4 import BeautifulSoup
+from flask import Flask, render_template, request, abort
+from markupsafe import escape
+
+# ==========================================
+# 0. CONFIGURAÇÃO & SEGURANÇA
+# ==========================================
 app = Flask(__name__)
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', os.urandom(32).hex())
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# --- Headers de segurança aplicados em TODAS as respostas ---
+@app.after_request
+def aplicar_headers_seguranca(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "style-src 'self' https://cdnjs.cloudflare.com https://fonts.googleapis.com 'unsafe-inline'; "
+        "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
+        "img-src 'self' https: data:; "
+        "script-src 'self'; "
+        "frame-ancestors 'none';"
+    )
+    return response
+
+# --- Rate limiting simples (sem dependência extra) ---
+_rate_limit = {}
+RATE_LIMIT_MAX = 30          # máx requisições
+RATE_LIMIT_WINDOW = 60       # por janela de segundos
+
+@app.before_request
+def limitar_requisicoes():
+    ip = request.remote_addr
+    agora = time.time()
+    registro = _rate_limit.get(ip, {"contagem": 0, "inicio": agora})
+    if agora - registro["inicio"] > RATE_LIMIT_WINDOW:
+        registro = {"contagem": 0, "inicio": agora}
+    registro["contagem"] += 1
+    _rate_limit[ip] = registro
+    if registro["contagem"] > RATE_LIMIT_MAX:
+        abort(429)
 
 # ==========================================
 # 1. CONFIGURAÇÃO DAS FONTES REAIS (RSS)
@@ -21,95 +70,227 @@ FONTES_RSS = {
     ],
     "CURIOSIDADES": [
         {"nome": "Mega Curioso", "url": "https://www.megacurioso.com.br/rss"},
-    ]
+    ],
 }
 
 # ==========================================
-# 2. CACHE PARA NÃO DERRUBAR O SERVIDOR
+# 2. CACHE
 # ==========================================
-# Evita que o site faça o download das notícias toda vez que alguém der F5
 cache_noticias = {
     "dados": [],
-    "ultima_atualizacao": 0
+    "ultima_atualizacao": 0,
 }
 
 # ==========================================
-# 3. FUNÇÕES DE AUTOMAÇÃO E IA (SIMULADA)
+# 3. DETECÇÃO AUTOMÁTICA DE LLM (GPT-4o-mini)
 # ==========================================
-def formatar_para_tdah(resumo_original):
-    """
-    Aqui é onde a IA entraria no futuro. 
-    Por enquanto, criamos um algoritmo que pega o texto do jornal 
-    e quebra em bullet points para caber no seu layout perfeito.
-    """
-    # Limpa tags HTML que vêm sujeiras dos jornais
-    texto_limpo = BeautifulSoup(resumo_original, "html.parser").get_text()
-    
-    if len(texto_limpo) < 20:
-        return ["Esta matéria traz atualizações curtas e diretas.", "Acesse o site oficial para ler os detalhes da cobertura."]
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
+USA_IA = bool(OPENAI_API_KEY)
 
-    # Divide o texto em frases para virarem bullets
-    frases = texto_limpo.split('. ')
+if USA_IA:
+    logger.info("API Key da OpenAI detectada — resumos com IA ativados (GPT-4o-mini).")
+else:
+    logger.info("Sem API Key da OpenAI — usando resumo por processamento de texto.")
+
+
+def resumir_com_ia(titulo, texto):
+    """Chama GPT-4o-mini para gerar bullets otimizados para TDAH."""
+    try:
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "gpt-4o-mini",
+                "temperature": 0.4,
+                "max_tokens": 250,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "Você é um assistente que resume notícias para pessoas com TDAH. "
+                            "Regras rígidas:\n"
+                            "- Retorne EXATAMENTE 3 frases curtas (máx. 20 palavras cada)\n"
+                            "- Use linguagem simples e direta\n"
+                            "- Comece cada frase com um verbo ou dado concreto\n"
+                            "- Sem introduções — vá direto ao ponto\n"
+                            "- Separe cada frase por \\n"
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Título: {titulo}\n\nTexto original:\n{texto[:1500]}",
+                    },
+                ],
+            },
+            timeout=15,
+        )
+        response.raise_for_status()
+        conteudo = response.json()["choices"][0]["message"]["content"].strip()
+        bullets = [b.strip().lstrip("•-– ") for b in conteudo.split("\n") if b.strip()]
+        return bullets[:3] if bullets else _formatar_texto_simples(texto)
+    except Exception as e:
+        logger.warning(f"Erro na API OpenAI, usando fallback: {e}")
+        return _formatar_texto_simples(texto)
+
+
+# ==========================================
+# 4. FUNÇÕES DE EXTRAÇÃO E FORMATAÇÃO
+# ==========================================
+_HEADERS_HTTP = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+}
+
+
+def _formatar_texto_simples(resumo_original):
+    """Fallback sem IA: divide texto em frases curtas."""
+    texto_limpo = BeautifulSoup(resumo_original, "html.parser").get_text()
+    if len(texto_limpo) < 20:
+        return [
+            "Esta matéria traz atualizações curtas e diretas.",
+            "Acesse o site oficial para ler os detalhes da cobertura.",
+        ]
+    frases = texto_limpo.split(". ")
     bullets = []
-    for frase in frases[:3]: # Pega no máximo 3 bullets
+    for frase in frases[:3]:
         if len(frase) > 5:
-            bullets.append(frase.strip() + ".")
-            
+            bullets.append(frase.strip().rstrip(".") + ".")
     return bullets
 
+
+def formatar_para_tdah(titulo, resumo_original):
+    """Usa IA se disponível, senão faz split de frases."""
+    if USA_IA:
+        return resumir_com_ia(titulo, resumo_original)
+    return _formatar_texto_simples(resumo_original)
+
+
+def extrair_imagem(entry):
+    """Tenta extrair imagem do RSS (media:content, enclosure, HTML)."""
+    if hasattr(entry, "media_content") and entry.media_content:
+        for media in entry.media_content:
+            if "url" in media:
+                return media["url"]
+    if hasattr(entry, "media_thumbnail") and entry.media_thumbnail:
+        for thumb in entry.media_thumbnail:
+            if "url" in thumb:
+                return thumb["url"]
+    if hasattr(entry, "enclosures") and entry.enclosures:
+        for enc in entry.enclosures:
+            if enc.get("type", "").startswith("image"):
+                return enc.get("href") or enc.get("url", "")
+    resumo = entry.get("description", "") or entry.get("summary", "")
+    if resumo:
+        soup = BeautifulSoup(resumo, "html.parser")
+        img = soup.find("img")
+        if img and img.get("src"):
+            return img["src"]
+    return ""
+
+
+def extrair_og_image(url):
+    """Fallback: busca og:image direto na página do artigo."""
+    try:
+        resp = requests.get(url, headers=_HEADERS_HTTP, timeout=8)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        og = soup.find("meta", property="og:image")
+        if og and og.get("content"):
+            return og["content"]
+    except Exception:
+        pass
+    return ""
+
+
+def _validar_url(url):
+    """Verifica se é uma URL HTTP(S) válida."""
+    try:
+        parsed = urlparse(url)
+        return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+    except Exception:
+        return False
+
+
+# ==========================================
+# 5. MOTOR DE BUSCA DE NOTÍCIAS
+# ==========================================
 def buscar_noticias_automaticamente():
-    """Motor que varre os sites dos jornais e monta o seu feed"""
     noticias_peneiradas = []
-    
     for categoria, fontes in FONTES_RSS.items():
         for fonte in fontes:
             try:
-                # Conecta no site do jornal
                 feed = feedparser.parse(fonte["url"])
-                
-                # Pega as 2 matérias mais recentes daquela fonte
                 for entry in feed.entries[:2]:
-                    # Processa a data
                     data_hoje = datetime.now().strftime("%d/%m/%Y")
-                    
-                    # Cria o formato exigido pelo seu Frontend
+                    descricao = entry.get("description", "") or entry.get("summary", "")
+
+                    # Imagem: tenta RSS primeiro, depois og:image da página
+                    imagem = extrair_imagem(entry)
+                    if not imagem and hasattr(entry, "link"):
+                        imagem = extrair_og_image(entry.link)
+
                     noticia = {
                         "categoria": categoria,
                         "titulo": entry.title,
                         "link_original": entry.link,
                         "fonte": fonte["nome"],
-                        "bullets": formatar_para_tdah(entry.description),
+                        "bullets": formatar_para_tdah(entry.title, descricao),
                         "data": data_hoje,
-                        "tempo_leitura": "3 min" # Simulador
+                        "tempo_leitura": "3 min",
+                        "imagem_url": imagem,
                     }
                     noticias_peneiradas.append(noticia)
             except Exception as e:
-                print(f"Erro ao buscar {fonte['nome']}: {e}")
-                
+                logger.error(f"Erro ao buscar {fonte['nome']}: {e}")
     return noticias_peneiradas
 
+
 # ==========================================
-# 4. ROTAS DO SITE (FLASK)
+# 6. ROTAS DO SITE (FLASK)
 # ==========================================
-@app.route('/')
+@app.route("/")
 def home():
     global cache_noticias
-    
-    # Atualiza as notícias a cada 15 minutos (900 segundos) para ser rápido
     tempo_atual = time.time()
     if tempo_atual - cache_noticias["ultima_atualizacao"] > 900:
-        print("Buscando novas notícias nos jornais...")
+        logger.info("Buscando novas notícias nos jornais...")
         cache_noticias["dados"] = buscar_noticias_automaticamente()
         cache_noticias["ultima_atualizacao"] = tempo_atual
+    return render_template("index.html", noticias=cache_noticias["dados"])
 
-    # Envia as notícias reais para o HTML
-    return render_template('index.html', noticias=cache_noticias["dados"])
 
-@app.route('/peneirar', methods=['POST'])
+@app.route("/peneirar", methods=["POST"])
 def peneirar_link():
-    """Rota para quando o usuário cola o link na barra de busca"""
-    link_recebido = request.form.get('url_digitada')
-    return f"<h3>Sucesso!</h3><p>O link recebido para peneirar foi: <a href='{link_recebido}'>{link_recebido}</a></p><p>Aqui entraria a integração com a IA para resumir este link exato!</p>"
+    """Rota para quando o usuário cola um link na barra de busca."""
+    link_recebido = request.form.get("url_digitada", "").strip()
 
-if __name__ == '__main__':
+    # Validação de segurança: só aceita URLs HTTP(S)
+    if not link_recebido or not _validar_url(link_recebido):
+        return render_template(
+            "index.html",
+            noticias=cache_noticias["dados"],
+            erro="Por favor, insira um link válido (ex: https://exemplo.com/materia).",
+        )
+
+    link_escapado = escape(link_recebido)
+    return render_template(
+        "index.html",
+        noticias=cache_noticias["dados"],
+        peneirado={
+            "url": link_escapado,
+            "mensagem": "Aqui entraria a integração com a IA para resumir este link exato!"
+            if not USA_IA
+            else "Funcionalidade de resumo por IA em desenvolvimento.",
+        },
+    )
+
+
+@app.errorhandler(429)
+def too_many_requests(e):
+    return "<h3>Muitas requisições. Aguarde um momento e tente novamente.</h3>", 429
+
+
+if __name__ == "__main__":
     app.run(debug=True, port=5000)

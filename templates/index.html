@@ -40,14 +40,23 @@
             
             {% for noticia in noticias %}
             <article class="news-card">
-                <div class="news-image-placeholder"></div>
+                <div class="news-image-placeholder">
+                    {% if noticia.imagem_url %}
+                    <img src="{{ noticia.imagem_url }}" alt="{{ noticia.titulo }}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">
+                    {% endif %}
+                </div>
                 
                 <div class="news-content">
                     <div class="news-header">
                         <h2 class="news-title">{{ noticia.titulo }}</h2>
-                        <a href="{{ noticia.link_original }}" target="_blank" class="external-link">
-                            <i class="fa-solid fa-link"></i> Acessar o site oficial
-                        </a>
+                        <div class="news-source-links">
+                            <span class="source-credit">
+                                <i class="fa-regular fa-newspaper"></i> Fonte: {{ noticia.fonte }}
+                            </span>
+                            <a href="{{ noticia.link_original }}" target="_blank" rel="noopener noreferrer" class="external-link">
+                                <i class="fa-solid fa-link"></i> Acessar o site oficial
+                            </a>
+                        </div>
                     </div>
                     
                     <p class="context-title">Contexto resumido:</p>

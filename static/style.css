@@ -186,6 +186,25 @@ body {
     white-space: nowrap; /* IMPEDE O ÍCONE DE SEPARAR DO TEXTO */    
 }
 
+.news-source-links {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.source-credit {
+    font-family: 'Trocchi', serif;
+    color: var(--text-gray);
+    font-size: 1.1rem;
+    white-space: nowrap;
+}
+
+.source-credit i {
+    color: var(--primary-orange);
+    margin-right: 4px;
+}
+
 .context-title {
     font-size: 1.35rem;
     color: var(--text-dark);
