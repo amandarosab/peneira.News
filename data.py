@@ -1,7 +1,9 @@
 import os
+import json
 import time
 import logging
 from datetime import datetime
+from pathlib import Path
 
 import feedparser
 import requests
@@ -32,6 +34,9 @@ _cache = {
 _HEADERS_HTTP = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 }
+
+ARQUIVO_NOTICIAS = Path(__file__).parent / "noticias_cache.json"
+MAX_HISTORICO = 200
 
 # --- Detecção automática de LLM ---
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
@@ -144,7 +149,7 @@ def _buscar_noticias():
         for fonte in fontes:
             try:
                 feed = feedparser.parse(fonte["url"])
-                for entry in feed.entries[:2]:
+                for entry in feed.entries[:5]:
                     data_hoje = datetime.now().strftime("%d/%m/%Y")
                     descricao = entry.get("description", "") or entry.get("summary", "")
 
@@ -167,11 +172,41 @@ def _buscar_noticias():
     return noticias
 
 
+def _carregar_historico():
+    if ARQUIVO_NOTICIAS.exists():
+        try:
+            with open(ARQUIVO_NOTICIAS, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+    return []
+
+
+def _salvar_historico(noticias):
+    try:
+        with open(ARQUIVO_NOTICIAS, "w", encoding="utf-8") as f:
+            json.dump(noticias[:MAX_HISTORICO], f, ensure_ascii=False, indent=2)
+    except OSError as e:
+        logger.error(f"Erro ao salvar histórico: {e}")
+
+
+def _merge_noticias(novas, existentes):
+    links_existentes = {n["link_original"] for n in existentes}
+    unicas = [n for n in novas if n["link_original"] not in links_existentes]
+    return unicas + existentes
+
+
 def _atualizar_cache():
     agora = time.time()
     if agora - _cache["ultima_atualizacao"] > 900:
-        _cache["dados"] = _buscar_noticias()
+        novas = _buscar_noticias()
+        historico = _carregar_historico()
+        todas = _merge_noticias(novas, historico)
+        _salvar_historico(todas)
+        _cache["dados"] = todas
         _cache["ultima_atualizacao"] = agora
+    elif not _cache["dados"]:
+        _cache["dados"] = _carregar_historico()
 
 
 def get_noticias(categoria=None):

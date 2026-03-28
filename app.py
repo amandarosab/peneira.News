@@ -1,14 +1,16 @@
 import os
 import re
+import json
 import time
 import logging
 from datetime import datetime
 from urllib.parse import urlparse
+from pathlib import Path
 
 import feedparser
 import requests
 from bs4 import BeautifulSoup
-from flask import Flask, render_template, request, abort
+from flask import Flask, render_template, request, abort, jsonify
 from markupsafe import escape
 
 # ==========================================
@@ -74,12 +76,43 @@ FONTES_RSS = {
 }
 
 # ==========================================
-# 2. CACHE
+# 2. CACHE + PERSISTÊNCIA EM JSON
 # ==========================================
+ARQUIVO_NOTICIAS = Path(__file__).parent / "noticias_cache.json"
+POR_PAGINA = 6  # notícias por "página" (carregamento inicial + cada clique)
+MAX_HISTORICO = 200  # máx. de matérias guardadas no arquivo
+
 cache_noticias = {
     "dados": [],
     "ultima_atualizacao": 0,
 }
+
+
+def _carregar_historico():
+    """Lê o arquivo JSON com matérias acumuladas."""
+    if ARQUIVO_NOTICIAS.exists():
+        try:
+            with open(ARQUIVO_NOTICIAS, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+    return []
+
+
+def _salvar_historico(noticias):
+    """Grava matérias no JSON, mantendo no máximo MAX_HISTORICO."""
+    try:
+        with open(ARQUIVO_NOTICIAS, "w", encoding="utf-8") as f:
+            json.dump(noticias[:MAX_HISTORICO], f, ensure_ascii=False, indent=2)
+    except OSError as e:
+        logger.error(f"Erro ao salvar histórico: {e}")
+
+
+def _merge_noticias(novas, existentes):
+    """Mescla novas matérias com as já salvas, sem duplicatas (por link)."""
+    links_existentes = {n["link_original"] for n in existentes}
+    unicas = [n for n in novas if n["link_original"] not in links_existentes]
+    return unicas + existentes  # novas no topo
 
 # ==========================================
 # 3. DETECÇÃO AUTOMÁTICA DE LLM (GPT-4o-mini)
@@ -222,7 +255,7 @@ def buscar_noticias_automaticamente():
         for fonte in fontes:
             try:
                 feed = feedparser.parse(fonte["url"])
-                for entry in feed.entries[:2]:
+                for entry in feed.entries[:5]:
                     data_hoje = datetime.now().strftime("%d/%m/%Y")
                     descricao = entry.get("description", "") or entry.get("summary", "")
 
@@ -250,15 +283,74 @@ def buscar_noticias_automaticamente():
 # ==========================================
 # 6. ROTAS DO SITE (FLASK)
 # ==========================================
-@app.route("/")
-def home():
+CATEGORIAS_VALIDAS = {"cultura-e-tech", "politica", "economia", "curiosidades"}
+PAGINAS_VALIDAS = {"sobre", "contato"}
+
+CATEGORIA_MAP = {
+    "cultura-e-tech": "CULTURA E TECH",
+    "politica": "POLÍTICA",
+    "economia": "ECONOMIA",
+    "curiosidades": "CURIOSIDADES",
+}
+
+
+def _atualizar_cache():
     global cache_noticias
     tempo_atual = time.time()
     if tempo_atual - cache_noticias["ultima_atualizacao"] > 900:
         logger.info("Buscando novas notícias nos jornais...")
-        cache_noticias["dados"] = buscar_noticias_automaticamente()
+        novas = buscar_noticias_automaticamente()
+        historico = _carregar_historico()
+        todas = _merge_noticias(novas, historico)
+        _salvar_historico(todas)
+        cache_noticias["dados"] = todas
         cache_noticias["ultima_atualizacao"] = tempo_atual
-    return render_template("index.html", noticias=cache_noticias["dados"])
+    elif not cache_noticias["dados"]:
+        cache_noticias["dados"] = _carregar_historico()
+
+
+@app.route("/")
+def home():
+    _atualizar_cache()
+    return render_template("index.html", noticias=cache_noticias["dados"][:POR_PAGINA], pagina="inicio", tem_mais=len(cache_noticias["dados"]) > POR_PAGINA)
+
+
+@app.route("/categoria/<slug>")
+def categoria(slug):
+    if slug not in CATEGORIAS_VALIDAS:
+        abort(404)
+    _atualizar_cache()
+    nome_categoria = CATEGORIA_MAP[slug]
+    filtradas = [n for n in cache_noticias["dados"] if n["categoria"] == nome_categoria]
+    return render_template("index.html", noticias=filtradas[:POR_PAGINA], pagina=slug, tem_mais=len(filtradas) > POR_PAGINA)
+
+
+@app.route("/api/noticias")
+def api_noticias():
+    """Endpoint de paginação — retorna próximas matérias em JSON."""
+    _atualizar_cache()
+    pagina_num = request.args.get("pagina", 1, type=int)
+    cat_slug = request.args.get("categoria", "").strip()
+
+    dados = cache_noticias["dados"]
+    if cat_slug and cat_slug in CATEGORIAS_VALIDAS:
+        nome_cat = CATEGORIA_MAP[cat_slug]
+        dados = [n for n in dados if n["categoria"] == nome_cat]
+
+    inicio = pagina_num * POR_PAGINA
+    fim = inicio + POR_PAGINA
+    fatia = dados[inicio:fim]
+    return jsonify({"noticias": fatia, "tem_mais": fim < len(dados)})
+
+
+@app.route("/sobre")
+def sobre():
+    return render_template("index.html", noticias=[], pagina="sobre")
+
+
+@app.route("/contato")
+def contato():
+    return render_template("index.html", noticias=[], pagina="contato")
 
 
 @app.route("/peneirar", methods=["POST"])

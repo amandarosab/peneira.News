@@ -17,13 +17,13 @@
         
         <nav class="main-nav">
             <ul>
-                <li><a href="#" class="active">INÍCIO</a></li>
-                <li><a href="#">CULTURA E TECH</a></li>
-                <li><a href="#">POLÍTICA</a></li>
-                <li><a href="#">ECONOMIA</a></li>
-                <li><a href="#">CURIOSIDADES</a></li>
-                <li><a href="#">SOBRE</a></li>
-                <li><a href="#">CONTATO</a></li>
+                <li><a href="/" class="{{ 'active' if pagina == 'inicio' else '' }}">INÍCIO</a></li>
+                <li><a href="/categoria/cultura-e-tech" class="{{ 'active' if pagina == 'cultura-e-tech' else '' }}">CULTURA E TECH</a></li>
+                <li><a href="/categoria/politica" class="{{ 'active' if pagina == 'politica' else '' }}">POLÍTICA</a></li>
+                <li><a href="/categoria/economia" class="{{ 'active' if pagina == 'economia' else '' }}">ECONOMIA</a></li>
+                <li><a href="/categoria/curiosidades" class="{{ 'active' if pagina == 'curiosidades' else '' }}">CURIOSIDADES</a></li>
+                <li><a href="/sobre" class="{{ 'active' if pagina == 'sobre' else '' }}">SOBRE</a></li>
+                <li><a href="/contato" class="{{ 'active' if pagina == 'contato' else '' }}">CONTATO</a></li>
             </ul>
         </nav>
     </header>
@@ -36,8 +36,28 @@
     </section>
 
     <main class="main-content container">
+
+        {% if pagina == 'sobre' %}
+        <section class="page-section">
+            <h2 class="section-title">Sobre o Peneira News</h2>
+            <p>Criado para mentes neurodivergentes, o <strong>peneira.NEWS</strong> filtra o ruído dos portais de notícias e entrega apenas o essencial — em frases curtas, diretas e fáceis de absorver.</p>
+            <p>As matérias são coletadas automaticamente de fontes confiáveis via RSS e resumidas para leitura rápida.</p>
+            <p>Desenvolvido com carinho pelo time <strong>Los Coders</strong>.</p>
+        </section>
+
+        {% elif pagina == 'contato' %}
+        <section class="page-section">
+            <h2 class="section-title">Contato</h2>
+            <p>Fale conosco: <a href="mailto:contato@peneira.news">contato@peneira.news</a></p>
+        </section>
+
+        {% else %}
         <section class="articles-list">
             
+            {% if noticias|length == 0 %}
+            <p class="empty-msg">Nenhuma notícia encontrada nesta categoria.</p>
+            {% endif %}
+
             {% for noticia in noticias %}
             <article class="news-card">
                 <div class="news-image-placeholder">
@@ -75,6 +95,14 @@
             {% endfor %}
 
         </section>
+        {% if tem_mais %}
+        <div class="load-more-container">
+            <button id="btn-carregar-mais" class="btn-carregar-mais" data-pagina="1" data-categoria="{{ pagina if pagina != 'inicio' else '' }}">
+                <i class="fa-solid fa-angles-down"></i> Carregar mais matérias
+            </button>
+        </div>
+        {% endif %}
+        {% endif %}
     </main>
 
     <footer class="footer-container">
@@ -96,5 +124,69 @@
         <div class="footer-zigzag"></div>
     </footer>
 
+    <script>
+    (function() {
+        var btn = document.getElementById('btn-carregar-mais');
+        if (!btn) return;
+
+        btn.addEventListener('click', function() {
+            var pagina = parseInt(btn.getAttribute('data-pagina'));
+            var categoria = btn.getAttribute('data-categoria') || '';
+            var url = '/api/noticias?pagina=' + pagina;
+            if (categoria) url += '&categoria=' + encodeURIComponent(categoria);
+
+            btn.disabled = true;
+            btn.textContent = 'Carregando...';
+
+            fetch(url)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    var lista = document.querySelector('.articles-list');
+                    data.noticias.forEach(function(n) {
+                        var imgHtml = '';
+                        if (n.imagem_url) {
+                            imgHtml = '<img src="' + n.imagem_url + '" alt="' + n.titulo + '" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">';
+                        }
+                        var bulletsHtml = '';
+                        n.bullets.forEach(function(b) {
+                            bulletsHtml += '<li>' + b + '</li>';
+                        });
+                        var card = document.createElement('article');
+                        card.className = 'news-card';
+                        card.innerHTML =
+                            '<div class="news-image-placeholder">' + imgHtml + '</div>' +
+                            '<div class="news-content">' +
+                                '<div class="news-header">' +
+                                    '<h2 class="news-title">' + n.titulo + '</h2>' +
+                                    '<div class="news-source-links">' +
+                                        '<span class="source-credit"><i class="fa-regular fa-newspaper"></i> Fonte: ' + n.fonte + '</span>' +
+                                        '<a href="' + n.link_original + '" target="_blank" rel="noopener noreferrer" class="external-link"><i class="fa-solid fa-link"></i> Acessar o site oficial</a>' +
+                                    '</div>' +
+                                '</div>' +
+                                '<p class="context-title">Contexto resumido:</p>' +
+                                '<ul class="bullet-list">' + bulletsHtml + '</ul>' +
+                                '<div class="news-meta">' +
+                                    '<span><i class="fa-regular fa-calendar"></i> ' + n.data + '</span>' +
+                                    '<span><i class="fa-regular fa-clock"></i> ' + n.tempo_leitura + '</span>' +
+                                '</div>' +
+                            '</div>';
+                        lista.appendChild(card);
+                    });
+
+                    if (data.tem_mais) {
+                        btn.setAttribute('data-pagina', pagina + 1);
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fa-solid fa-angles-down"></i> Carregar mais matérias';
+                    } else {
+                        btn.parentElement.remove();
+                    }
+                })
+                .catch(function() {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fa-solid fa-angles-down"></i> Carregar mais matérias';
+                });
+        });
+    })();
+    </script>
 </body>
 </html>

@@ -84,10 +84,73 @@ body {
     transition: color 0.2s;
 }
 
+.main-nav a:hover {
+    color: var(--primary-orange);
+}
+
 .main-nav a.active {
     color: var(--primary-orange);
     border-bottom: 2px solid var(--primary-orange);
     padding-bottom: 3px;
+}
+
+/* --- PÁGINAS SOBRE / CONTATO --- */
+.page-section {
+    padding: 40px 0 80px;
+    font-size: 1.2rem;
+    line-height: 1.8;
+}
+
+.page-section p {
+    margin-bottom: 16px;
+}
+
+.section-title {
+    font-family: 'TAN Nimbus', 'Abril Fatface', serif;
+    font-size: 2.6rem;
+    color: var(--primary-orange);
+    margin-bottom: 24px;
+    font-weight: normal;
+}
+
+.empty-msg {
+    font-size: 1.2rem;
+    color: var(--text-gray);
+    padding: 40px 0;
+}
+
+/* --- BOTÃO CARREGAR MAIS --- */
+.load-more-container {
+    display: flex;
+    justify-content: center;
+    padding: 40px 0 20px;
+}
+
+.btn-carregar-mais {
+    background-color: var(--primary-orange);
+    color: var(--bg-white);
+    border: none;
+    padding: 14px 36px;
+    border-radius: 30px;
+    font-family: 'Trocchi', serif;
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.btn-carregar-mais:hover {
+    background-color: var(--dark-orange);
+    transform: translateY(-1px);
+}
+
+.btn-carregar-mais:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+.btn-carregar-mais i {
+    margin-right: 6px;
 }
 
 /* --- BARRA DE BUSCA --- */
