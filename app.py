@@ -16,7 +16,13 @@ from markupsafe import escape
 # ==========================================
 # 0. CONFIGURAÇÃO & SEGURANÇA
 # ==========================================
-app = Flask(__name__)
+_BASE_DIR = Path(__file__).resolve().parent
+
+app = Flask(
+    __name__,
+    template_folder=str(_BASE_DIR / "templates"),
+    static_folder=str(_BASE_DIR / "static"),
+)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', os.urandom(32).hex())
 
 logging.basicConfig(level=logging.INFO)
