@@ -35,7 +35,8 @@ def aplicar_headers_seguranca(response):
         "style-src 'self' https://cdnjs.cloudflare.com https://fonts.googleapis.com 'unsafe-inline'; "
         "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
         "img-src 'self' https: data:; "
-        "script-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "connect-src 'self'; "
         "frame-ancestors 'none';"
     )
     return response
