@@ -22,7 +22,7 @@ FONTES_RSS = {
         {"nome": "InfoMoney", "url": "https://www.infomoney.com.br/feed/"},
     ],
     "CURIOSIDADES": [
-        {"nome": "Mega Curioso", "url": "https://www.megacurioso.com.br/rss"},
+        {"nome": "Mega Curioso", "url": "https://www.megacurioso.com.br"},
     ],
 }
 
