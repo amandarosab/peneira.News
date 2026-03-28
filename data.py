@@ -22,7 +22,7 @@ FONTES_RSS = {
         {"nome": "InfoMoney", "url": "https://www.infomoney.com.br/feed/"},
     ],
     "CURIOSIDADES": [
-        {"nome": "Mega Curioso", "url": "https://www.megacurioso.com.br/rss"},
+        {"nome": "Super Interessante", "url": "https://super.abril.com.br/feed"},
     ],
 }
 
@@ -36,7 +36,7 @@ _HEADERS_HTTP = {
 }
 
 ARQUIVO_NOTICIAS = Path(__file__).parent / "noticias_cache.json"
-MAX_HISTORICO = 200
+MAX_HISTORICO = 600
 
 # --- Detecção automática de LLM ---
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()

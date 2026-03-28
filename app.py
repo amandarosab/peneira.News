@@ -78,7 +78,7 @@ FONTES_RSS = {
         {"nome": "InfoMoney", "url": "https://www.infomoney.com.br/feed/"},
     ],
     "CURIOSIDADES": [
-        {"nome": "Mega Curioso", "url": "https://www.megacurioso.com.br/rss"},
+        {"nome": "Super Interessante", "url": "https://super.abril.com.br/feed"},
     ],
 }
 
@@ -92,7 +92,7 @@ if _IS_VERCEL:
 else:
     ARQUIVO_NOTICIAS = _BASE_DIR / "noticias_cache.json"
 POR_PAGINA = 6  # notícias por "página" (carregamento inicial + cada clique)
-MAX_HISTORICO = 200  # máx. de matérias guardadas no arquivo
+MAX_HISTORICO = 600  # máx. de matérias guardadas (~1 mês de histórico)
 
 cache_noticias = {
     "dados": [],
