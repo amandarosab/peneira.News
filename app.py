@@ -85,7 +85,12 @@ FONTES_RSS = {
 # ==========================================
 # 2. CACHE + PERSISTÊNCIA EM JSON
 # ==========================================
-ARQUIVO_NOTICIAS = Path(__file__).parent / "noticias_cache.json"
+# Vercel tem filesystem read-only, usa /tmp para gravar
+_IS_VERCEL = os.environ.get("VERCEL", "") == "1"
+if _IS_VERCEL:
+    ARQUIVO_NOTICIAS = Path("/tmp/noticias_cache.json")
+else:
+    ARQUIVO_NOTICIAS = _BASE_DIR / "noticias_cache.json"
 POR_PAGINA = 6  # notícias por "página" (carregamento inicial + cada clique)
 MAX_HISTORICO = 200  # máx. de matérias guardadas no arquivo
 
