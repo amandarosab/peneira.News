@@ -127,27 +127,34 @@ if _IS_VERCEL:
     ARQUIVO_NOTICIAS = Path("/tmp/noticias_cache.json")
 else:
     ARQUIVO_NOTICIAS = _BASE_DIR / "noticias_cache.json"
+ARQUIVO_NOTICIAS_EMPACOTADO = _BASE_DIR / "noticias_cache.json"
 POR_PAGINA = 6  # notícias por "página" (carregamento inicial + cada clique)
 MAX_HISTORICO = 600  # máx. de matérias guardadas (~1 mês de histórico)
 DIAS_HISTORICO = 30
-ITENS_POR_FONTE = 40
+CACHE_REFRESH_SECONDS = int(os.environ.get("CACHE_REFRESH_SECONDS", "900"))
+VERCEL_SYNC_REFRESH = os.environ.get("VERCEL_SYNC_REFRESH", "").strip() == "1"
+ITENS_POR_FONTE = int(
+    os.environ.get("ITENS_POR_FONTE", "12" if _IS_VERCEL else "40")
+)
 
-cache_noticias = {
-    "dados": [],
-    "ultima_atualizacao": 0,
-}
 _cache_lock = threading.Lock()
 _rate_limit_lock = threading.Lock()
 
 
 def _carregar_historico():
     """Lê o arquivo JSON com matérias acumuladas."""
-    if ARQUIVO_NOTICIAS.exists():
+    caminhos = [ARQUIVO_NOTICIAS]
+    if _IS_VERCEL and ARQUIVO_NOTICIAS_EMPACOTADO not in caminhos:
+        caminhos.append(ARQUIVO_NOTICIAS_EMPACOTADO)
+
+    for caminho in caminhos:
+        if not caminho.exists():
+            continue
         try:
-            with open(ARQUIVO_NOTICIAS, "r", encoding="utf-8") as f:
+            with open(caminho, "r", encoding="utf-8") as f:
                 return _filtrar_historico_recente(json.load(f))
         except (json.JSONDecodeError, OSError):
-            pass
+            continue
     return []
 
 
@@ -255,6 +262,7 @@ def _filtrar_historico_recente(noticias, dias=DIAS_HISTORICO):
         if dt_publicacao and dt_publicacao.date() >= limite:
             filtradas.append(noticia_norm)
     return _ordenar_noticias(filtradas)
+
 
 # ==========================================
 # 3. DETECÇÃO AUTOMÁTICA DE LLM (GPT-4o-mini)
@@ -705,6 +713,15 @@ def _extrair_data_publicacao(entry):
     return _extrair_datetime_publicacao(entry).strftime("%d/%m/%Y")
 
 
+cache_noticias = {
+    "dados": _carregar_historico(),
+    "ultima_atualizacao": time.time(),
+}
+
+if not cache_noticias["dados"]:
+    cache_noticias["ultima_atualizacao"] = 0
+
+
 # ==========================================
 # 5. MOTOR DE BUSCA DE NOTÍCIAS
 # ==========================================
@@ -724,17 +741,25 @@ def buscar_noticias_automaticamente():
 
                     # Extrai o texto mais rico possível do RSS
                     descricao = _extrair_descricao_completa(entry)
-
-                    # Busca a página do artigo uma única vez (reusada para imagem + texto)
-                    soup_pagina = _buscar_pagina(entry.link) if hasattr(entry, "link") else None
+                    descricao_limpa = _limpar_html(descricao)
 
                     # Imagem: tenta RSS primeiro, depois og:image da página
                     imagem = extrair_imagem(entry)
-                    if not imagem:
+
+                    # Só busca a página quando o RSS vier sem imagem ou com pouco texto.
+                    precisa_pagina = (not imagem) or len(descricao_limpa) < 180
+                    soup_pagina = (
+                        _buscar_pagina(entry.link)
+                        if precisa_pagina and hasattr(entry, "link")
+                        else None
+                    )
+
+                    if not imagem and soup_pagina is not None:
                         imagem = _extrair_og_image_do_soup(soup_pagina)
 
                     # Enriquece texto se RSS trouxe pouco conteúdo
-                    descricao = _enriquecer_texto(soup_pagina, descricao)
+                    if soup_pagina is not None:
+                        descricao = _enriquecer_texto(soup_pagina, descricao)
 
                     noticia = {
                         "id": _gerar_id(entry.link),
@@ -772,7 +797,17 @@ def _atualizar_cache():
     global cache_noticias
     with _cache_lock:
         tempo_atual = time.time()
-        if tempo_atual - cache_noticias["ultima_atualizacao"] > 900:
+        if not cache_noticias["dados"]:
+            cache_noticias["dados"] = _filtrar_historico_recente(_carregar_historico())
+            if cache_noticias["dados"] and not cache_noticias["ultima_atualizacao"]:
+                cache_noticias["ultima_atualizacao"] = tempo_atual
+
+        cache_expirado = tempo_atual - cache_noticias["ultima_atualizacao"] > CACHE_REFRESH_SECONDS
+        pode_atualizar_sincrono = (
+            (not _IS_VERCEL) or (not cache_noticias["dados"]) or VERCEL_SYNC_REFRESH
+        )
+
+        if cache_expirado and pode_atualizar_sincrono:
             logger.info("Buscando novas notícias nos jornais...")
             novas = buscar_noticias_automaticamente()
             historico = _carregar_historico()
