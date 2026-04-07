@@ -89,7 +89,7 @@ def render_news_card(news):
     <div class="news-content">
         <div class="news-header">
             <a href="{safe_link}" target="_blank" rel="noopener noreferrer" class="news-title-link">{safe_titulo}</a>
-            <a href="{safe_link}" target="_blank" rel="noopener noreferrer" class="official-link">{icon_link} Acessar o site oficial</a>
+            <a href="{safe_link}" target="_blank" rel="noopener noreferrer" class="official-link">{icon_link} Acesse o site oficial</a>
         </div>
         <div class="context-heading">Contexto resumido:</div>
         <ul class="bullet-list">
