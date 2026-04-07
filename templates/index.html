@@ -3,10 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Peneira News</title>
+    <title>peneira.NEWS — Filtramos o ruído para mentes neurodivergentes</title>
+
+    <!-- SEO -->
+    <meta name="description" content="Peneira News filtra o ruído dos portais e entrega resumos curtos, diretos e fáceis de absorver para mentes neurodivergentes.">
+    <meta name="robots" content="index, follow">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="pt_BR">
+    <meta property="og:site_name" content="peneira.NEWS">
+    <meta property="og:title" content="peneira.NEWS">
+    <meta property="og:description" content="Resumos curtos e diretos das principais notícias — feitos para quem não tem tempo a perder.">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="peneira.NEWS">
+    <meta name="twitter:description" content="Filtramos o ruído, você consome somente o necessário!">
+
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Font Awesome 6.4.0 com SRI (Subresource Integrity) -->
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+          integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
+          crossorigin="anonymous"
+          referrerpolicy="no-referrer">
 </head>
 <body>
 
@@ -30,10 +52,24 @@
     </header>
 
     <section class="search-section container">
-        <div class="search-bar">
-            <input type="text" placeholder="Insira o seu link externo aqui...">
-            <button type="button"><i class="fa-solid fa-magnifying-glass"></i></button>
+        <form action="/peneirar" method="POST" class="search-bar" id="search-form">
+            <input type="url"
+                   name="url_digitada"
+                   placeholder="Insira o seu link externo aqui..."
+                   value="{{ request.form.get('url_digitada', '') }}"
+                   pattern="https?://.+"
+                   title="Informe uma URL válida começando com https://">
+            <button type="submit"><i class="fa-solid fa-magnifying-glass"></i></button>
+        </form>
+        {% if erro %}
+        <p class="search-error"><i class="fa-solid fa-circle-exclamation"></i> {{ erro }}</p>
+        {% endif %}
+        {% if peneirado %}
+        <div class="search-result">
+            <p><i class="fa-solid fa-circle-check"></i> {{ peneirado.mensagem }}</p>
+            <a href="{{ peneirado.url }}" target="_blank" rel="noopener noreferrer">{{ peneirado.url }}</a>
         </div>
+        {% endif %}
     </section>
 
     <main class="main-content container">
@@ -63,13 +99,15 @@
             <article class="news-card">
                 <div class="news-image-placeholder">
                     {% if noticia.imagem_url %}
-                    <img src="{{ noticia.imagem_url }}" alt="{{ noticia.titulo }}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">
+                    <img src="{{ noticia.imagem_url }}" alt="{{ noticia.titulo }}" loading="lazy" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">
                     {% endif %}
                 </div>
                 
                 <div class="news-content">
                     <div class="news-header">
-                        <h2 class="news-title">{{ noticia.titulo }}</h2>
+                        <h2 class="news-title">
+                            <a href="/noticia/{{ noticia.id }}" class="news-title-link">{{ noticia.titulo }}</a>
+                        </h2>
                         <div class="news-source-links">
                             <span class="source-credit">
                                 <i class="fa-regular fa-newspaper"></i> Fonte: {{ noticia.fonte }}
@@ -79,13 +117,6 @@
                             </a>
                         </div>
                     </div>
-                    
-                    <p class="context-title">Contexto resumido:</p>
-                    <ul class="bullet-list">
-                        {% for bullet in noticia.bullets %}
-                            <li>{{ bullet }}</li>
-                        {% endfor %}
-                    </ul>
                     
                     <div class="news-meta">
                         <span><i class="fa-regular fa-calendar"></i> {{ noticia.data }}</span>
@@ -116,78 +147,16 @@
             
             <div class="footer-right">
                 <h3 class="newsletter-title">Receba direto na sua caixa de entrada</h3>
-                <form class="newsletter-form">
-                    <input type="email" placeholder="Insira o seu e-mail aqui" required>
+                <form class="newsletter-form" id="newsletter-form" novalidate>
+                    <input type="email" id="newsletter-email" placeholder="Insira o seu e-mail aqui" required autocomplete="email">
                     <button type="submit">INSCREVA-SE</button>
                 </form>
+                <p class="newsletter-msg" id="newsletter-msg" aria-live="polite"></p>
             </div>
         </div>
         <div class="footer-zigzag"></div>
     </footer>
 
-    <script>
-    (function() {
-        var btn = document.getElementById('btn-carregar-mais');
-        if (!btn) return;
-
-        btn.addEventListener('click', function() {
-            var pagina = parseInt(btn.getAttribute('data-pagina'));
-            var categoria = btn.getAttribute('data-categoria') || '';
-            var url = '/api/noticias?pagina=' + pagina;
-            if (categoria) url += '&categoria=' + encodeURIComponent(categoria);
-
-            btn.disabled = true;
-            btn.textContent = 'Carregando...';
-
-            fetch(url)
-                .then(function(r) { return r.json(); })
-                .then(function(data) {
-                    var lista = document.querySelector('.articles-list');
-                    data.noticias.forEach(function(n) {
-                        var imgHtml = '';
-                        if (n.imagem_url) {
-                            imgHtml = '<img src="' + n.imagem_url + '" alt="' + n.titulo + '" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">';
-                        }
-                        var bulletsHtml = '';
-                        n.bullets.forEach(function(b) {
-                            bulletsHtml += '<li>' + b + '</li>';
-                        });
-                        var card = document.createElement('article');
-                        card.className = 'news-card';
-                        card.innerHTML =
-                            '<div class="news-image-placeholder">' + imgHtml + '</div>' +
-                            '<div class="news-content">' +
-                                '<div class="news-header">' +
-                                    '<h2 class="news-title">' + n.titulo + '</h2>' +
-                                    '<div class="news-source-links">' +
-                                        '<span class="source-credit"><i class="fa-regular fa-newspaper"></i> Fonte: ' + n.fonte + '</span>' +
-                                        '<a href="' + n.link_original + '" target="_blank" rel="noopener noreferrer" class="external-link"><i class="fa-solid fa-link"></i> Acessar o site oficial</a>' +
-                                    '</div>' +
-                                '</div>' +
-                                '<p class="context-title">Contexto resumido:</p>' +
-                                '<ul class="bullet-list">' + bulletsHtml + '</ul>' +
-                                '<div class="news-meta">' +
-                                    '<span><i class="fa-regular fa-calendar"></i> ' + n.data + '</span>' +
-                                    '<span><i class="fa-regular fa-clock"></i> ' + n.tempo_leitura + '</span>' +
-                                '</div>' +
-                            '</div>';
-                        lista.appendChild(card);
-                    });
-
-                    if (data.tem_mais) {
-                        btn.setAttribute('data-pagina', pagina + 1);
-                        btn.disabled = false;
-                        btn.innerHTML = '<i class="fa-solid fa-angles-down"></i> Carregar mais matérias';
-                    } else {
-                        btn.parentElement.remove();
-                    }
-                })
-                .catch(function() {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fa-solid fa-angles-down"></i> Carregar mais matérias';
-                });
-        });
-    })();
-    </script>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

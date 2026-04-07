@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ noticia.titulo }} — peneira.NEWS</title>
+
+    <!-- SEO -->
+    <meta name="description" content="{{ noticia.bullets | join(' ') | truncate(160) }}">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="article">
+    <meta property="og:locale" content="pt_BR">
+    <meta property="og:site_name" content="peneira.NEWS">
+    <meta property="og:title" content="{{ noticia.titulo }}">
+    <meta property="og:description" content="{{ noticia.bullets | join(' ') | truncate(200) }}">
+    {% if noticia.imagem_url %}
+    <meta property="og:image" content="{{ noticia.imagem_url }}">
+    {% endif %}
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ noticia.titulo }}">
+    <meta name="twitter:description" content="{{ noticia.bullets | join(' ') | truncate(200) }}">
+
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+          integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
+          crossorigin="anonymous"
+          referrerpolicy="no-referrer">
+</head>
+<body>
+
+    <header class="header-container container">
+        <div class="logo-section">
+            <a href="/" class="logo-link"><h1 class="logo">peneira.<span>NEWS</span></h1></a>
+            <div class="slogan-badge">Filtramos o ruído, você consome somente o necessário!</div>
+        </div>
+        
+        <nav class="main-nav">
+            <ul>
+                <li><a href="/">INÍCIO</a></li>
+                <li><a href="/categoria/cultura-e-tech">CULTURA E TECH</a></li>
+                <li><a href="/categoria/politica">POLÍTICA</a></li>
+                <li><a href="/categoria/economia">ECONOMIA</a></li>
+                <li><a href="/categoria/curiosidades">CURIOSIDADES</a></li>
+                <li><a href="/sobre">SOBRE</a></li>
+                <li><a href="/contato">CONTATO</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="main-content container">
+        <a href="/" class="back-link"><i class="fa-solid fa-arrow-left"></i> Voltar às matérias</a>
+
+        <article class="detail-article">
+            {% if noticia.imagem_url %}
+            <div class="detail-image">
+                <img src="{{ noticia.imagem_url }}" alt="{{ noticia.titulo }}" loading="lazy">
+            </div>
+            {% endif %}
+
+            <div class="detail-body">
+                <h1 class="detail-title">{{ noticia.titulo }}</h1>
+
+                <div class="detail-meta">
+                    <span class="source-credit">
+                        <i class="fa-regular fa-newspaper"></i> Fonte: {{ noticia.fonte }}
+                    </span>
+                    <span><i class="fa-regular fa-calendar"></i> {{ noticia.data }}</span>
+                    <span><i class="fa-regular fa-clock"></i> {{ noticia.tempo_leitura }}</span>
+                </div>
+
+                <div class="detail-summary">
+                    <h2 class="context-title">Contexto resumido:</h2>
+                    <ul class="bullet-list">
+                        {% for bullet in noticia.bullets %}
+                            <li>{{ bullet }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                <div class="detail-actions">
+                    <a href="{{ noticia.link_original }}" target="_blank" rel="noopener noreferrer" class="btn-original">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i> Ler matéria completa no site oficial
+                    </a>
+                </div>
+            </div>
+        </article>
+    </main>
+
+    <footer class="footer-container">
+        <div class="footer-content container">
+            <div class="footer-left">
+                <h2 class="footer-logo">peneira.<span>NEWS</span></h2>
+                <p class="footer-slogan">Filtramos o ruído, você consome somente o <span class="highlight">necessário!</span></p>
+                <p class="copyright">© 2026 Peneira News. Todos os direitos reservados. Desenvolvido por <a href="https://loscoders.com.br/" target="_blank" rel="noopener noreferrer" class="footer-link">Los Coders</a></p>
+            </div>
+            
+            <div class="footer-right">
+                <h3 class="newsletter-title">Receba direto na sua caixa de entrada</h3>
+                <form class="newsletter-form" id="newsletter-form" novalidate>
+                    <input type="email" id="newsletter-email" placeholder="Insira o seu e-mail aqui" required autocomplete="email">
+                    <button type="submit">INSCREVA-SE</button>
+                </form>
+                <p class="newsletter-msg" id="newsletter-msg" aria-live="polite"></p>
+            </div>
+        </div>
+        <div class="footer-zigzag"></div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

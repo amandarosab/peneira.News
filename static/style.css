@@ -404,3 +404,352 @@ body {
     position: absolute;
     bottom: 0;
 }
+
+/* --- FEEDBACK DE BUSCA --- */
+
+/* --- TÍTULO CLICÁVEL NOS CARDS --- */
+.news-title-link {
+    color: var(--primary-orange);
+    text-decoration: none;
+    transition: color 0.2s, text-decoration 0.2s;
+}
+
+.news-title-link:hover {
+    text-decoration: underline;
+    color: var(--dark-orange);
+}
+
+/* --- LINK "VOLTAR" NA PÁGINA DE DETALHE --- */
+.back-link {
+    display: inline-block;
+    margin-bottom: 28px;
+    color: var(--primary-orange);
+    text-decoration: none;
+    font-size: 1.1rem;
+    transition: color 0.2s;
+}
+
+.back-link:hover {
+    color: var(--dark-orange);
+    text-decoration: underline;
+}
+
+.logo-link {
+    text-decoration: none;
+    color: inherit;
+}
+
+/* --- PÁGINA DE DETALHE --- */
+.detail-article {
+    max-width: 860px;
+}
+
+.detail-image {
+    width: 100%;
+    max-height: 420px;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 32px;
+}
+
+.detail-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.detail-title {
+    font-family: 'TAN Nimbus', 'Abril Fatface', serif;
+    font-size: 2.8rem;
+    color: var(--primary-orange);
+    font-weight: normal;
+    line-height: 1.15;
+    margin-bottom: 20px;
+}
+
+.detail-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    color: var(--text-gray);
+    font-size: 1.05rem;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #eee;
+}
+
+.detail-meta i {
+    color: var(--primary-orange);
+    margin-right: 6px;
+}
+
+.detail-summary {
+    margin-bottom: 40px;
+}
+
+.detail-summary .context-title {
+    font-size: 1.4rem;
+    margin-bottom: 16px;
+}
+
+.detail-summary .bullet-list {
+    font-size: 1.3rem;
+    line-height: 1.7;
+}
+
+.detail-summary .bullet-list li {
+    margin-bottom: 12px;
+}
+
+.detail-actions {
+    margin-bottom: 60px;
+}
+
+.btn-original {
+    display: inline-block;
+    background-color: var(--primary-orange);
+    color: var(--bg-white);
+    text-decoration: none;
+    padding: 14px 32px;
+    border-radius: 30px;
+    font-family: 'Trocchi', serif;
+    font-size: 1.1rem;
+    font-weight: bold;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.btn-original:hover {
+    background-color: var(--dark-orange);
+    transform: translateY(-1px);
+}
+
+.btn-original i {
+    margin-right: 8px;
+}
+
+.search-error {
+    color: #c0392b;
+    margin-top: 10px;
+    font-size: 1rem;
+    padding: 8px 16px;
+    background: #fdf0ef;
+    border-radius: 8px;
+    display: inline-block;
+}
+
+.search-result {
+    margin-top: 12px;
+    padding: 12px 20px;
+    background: #edfaf1;
+    border-radius: 8px;
+    font-size: 1rem;
+}
+
+.search-result a {
+    color: var(--primary-orange);
+    word-break: break-all;
+}
+
+/* --- NEWSLETTER FEEDBACK --- */
+.newsletter-msg {
+    font-size: 0.95rem;
+    margin-top: 8px;
+    text-align: right;
+    min-height: 1.2em;
+    color: var(--bg-white);
+}
+
+/* ==========================================
+   RESPONSIVIDADE MOBILE
+   ========================================== */
+
+/* Tablet (até 1024px) */
+@media (max-width: 1024px) {
+    .container {
+        padding: 0 24px;
+    }
+
+    .news-image-placeholder {
+        width: 320px;
+        height: 220px;
+    }
+
+    .news-title {
+        font-size: 2rem;
+    }
+
+    .logo {
+        font-size: 3rem;
+    }
+
+    .detail-title {
+        font-size: 2.3rem;
+    }
+}
+
+/* Mobile grande (até 768px) */
+@media (max-width: 768px) {
+    .container {
+        padding: 0 16px;
+    }
+
+    /* Header: empilha logo e menu */
+    .header-container {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+        padding-top: 24px;
+        padding-bottom: 12px;
+    }
+
+    .logo-section {
+        margin-top: 0;
+    }
+
+    .logo {
+        font-size: 2.6rem;
+    }
+
+    .slogan-badge {
+        font-size: 0.9rem;
+        white-space: normal;
+    }
+
+    /* Navegação: vira lista com quebra de linha */
+    .main-nav ul {
+        flex-wrap: wrap;
+        gap: 10px 16px;
+    }
+
+    .main-nav a {
+        font-size: 0.9rem;
+    }
+
+    /* Barra de busca full width */
+    .search-bar {
+        max-width: 100%;
+    }
+
+    .search-section {
+        margin-top: 24px;
+        margin-bottom: 32px;
+    }
+
+    /* Cards: empilha imagem em cima do texto */
+    .news-card {
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .news-image-placeholder {
+        width: 100%;
+        height: 220px;
+    }
+
+    .news-title {
+        font-size: 1.7rem;
+    }
+
+    .news-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .articles-list {
+        gap: 48px;
+    }
+
+    /* Footer: empilha colunas */
+    .footer-content {
+        flex-direction: column;
+        gap: 32px;
+        padding-top: 40px;
+        padding-bottom: 36px;
+    }
+
+    .footer-right {
+        align-items: flex-start;
+        width: 100%;
+    }
+
+    .newsletter-title {
+        text-align: left;
+        font-size: 1.5rem;
+    }
+
+    .newsletter-form {
+        max-width: 100%;
+    }
+
+    .newsletter-msg {
+        text-align: left;
+    }
+
+    .footer-logo {
+        font-size: 2.8rem;
+    }
+
+    .detail-title {
+        font-size: 1.9rem;
+    }
+
+    .detail-meta {
+        gap: 12px 18px;
+        font-size: 0.95rem;
+    }
+
+    .detail-image {
+        max-height: 280px;
+    }
+
+    .btn-original {
+        display: block;
+        text-align: center;
+    }
+}
+
+/* Mobile pequeno (até 480px) */
+@media (max-width: 480px) {
+    .logo {
+        font-size: 2.2rem;
+    }
+
+    .main-nav ul {
+        gap: 8px 12px;
+    }
+
+    .main-nav a {
+        font-size: 0.8rem;
+    }
+
+    .news-title {
+        font-size: 1.4rem;
+    }
+
+    .section-title {
+        font-size: 2rem;
+    }
+
+    .bullet-list {
+        font-size: 1.1rem;
+    }
+
+    .btn-carregar-mais {
+        padding: 12px 24px;
+        font-size: 1rem;
+    }
+
+    .detail-title {
+        font-size: 1.5rem;
+    }
+
+    .detail-meta {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .detail-summary .bullet-list {
+        font-size: 1.1rem;
+    }
+}

@@ -2,6 +2,7 @@ import streamlit as st
 import time
 import data
 import textwrap
+import html as html_mod
 
 # --- 1. CONFIGURACAO DA PAGINA ---
 st.set_page_config(
@@ -51,8 +52,21 @@ def render_header():
                 st.rerun()
 
 # --- 4. FUNCAO DE RENDERIZACAO DE CARDS ---
+def _safe(text):
+    """Escapa HTML para prevenir XSS em dados vindos de RSS."""
+    return html_mod.escape(str(text)) if text else ''
+
+def _safe_url(url):
+    """Aceita apenas URLs http(s) — previne javascript: e data: XSS."""
+    if not url or not isinstance(url, str):
+        return '#'
+    url = url.strip()
+    if url.startswith('http://') or url.startswith('https://'):
+        return html_mod.escape(url)
+    return '#'
+
 def render_news_card(news):
-    bullets_html = ''.join([f'<li class="bullet-item">{b}</li>' for b in news['bullets']])
+    bullets_html = ''.join([f'<li class="bullet-item">{_safe(b)}</li>' for b in news['bullets']])
     
     # SVG Icons matching the mockup orange (#fd7506)
     icon_link = '<svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="#4c4b4b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>'
@@ -61,24 +75,29 @@ def render_news_card(news):
     
     img_url = news.get("imagem_url", "")
     img_fallback = "https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=800&q=60"
-    img_src = img_url if img_url else img_fallback
+    img_src = _safe_url(img_url) if img_url else img_fallback
     
-    img_html = f'<div class="news-image-container"><img src="{img_src}" class="news-image" alt="{news["titulo"]}"></div>'
+    safe_titulo = _safe(news["titulo"])
+    safe_link = _safe_url(news['link_original'])
+    safe_data = _safe(news['data'])
+    safe_tempo = _safe(news['tempo_leitura'])
+    
+    img_html = f'<div class="news-image-container"><img src="{img_src}" class="news-image" alt="{safe_titulo}"></div>'
     html = f"""
 <div class="news-card">
     {img_html}
     <div class="news-content">
         <div class="news-header">
-            <a href="{news['link_original']}" target="_blank" class="news-title-link">{news['titulo']}</a>
-            <a href="{news['link_original']}" target="_blank" class="official-link">{icon_link} Acessar o site oficial</a>
+            <a href="{safe_link}" target="_blank" rel="noopener noreferrer" class="news-title-link">{safe_titulo}</a>
+            <a href="{safe_link}" target="_blank" rel="noopener noreferrer" class="official-link">{icon_link} Acessar o site oficial</a>
         </div>
         <div class="context-heading">Contexto resumido:</div>
         <ul class="bullet-list">
             {bullets_html}
         </ul>
         <div class="news-footer">
-            <span class="footer-item">{icon_calendar} {news['data']}</span>
-            <span class="footer-item">{icon_clock} {news['tempo_leitura']}</span>
+            <span class="footer-item">{icon_calendar} {safe_data}</span>
+            <span class="footer-item">{icon_clock} {safe_tempo}</span>
         </div>
     </div>
 </div>
@@ -133,7 +152,7 @@ st.markdown("""
 selection = st.session_state.menu_selection
 
 if selection == "INÍCIO":
-    for news in data.NOTICIAS:
+    for news in data.get_noticias():
         render_news_card(news)
 
 elif selection in ["CULTURA E TECH", "POLÍTICA", "ECONOMIA", "CURIOSIDADES"]:

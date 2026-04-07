@@ -1,8 +1,14 @@
 import os
 import json
 import time
+import socket
+import hashlib
+import ipaddress
 import logging
+import tempfile
+import threading
 from datetime import datetime
+from urllib.parse import urlparse
 from pathlib import Path
 
 import feedparser
@@ -30,6 +36,7 @@ _cache = {
     "dados": [],
     "ultima_atualizacao": 0,
 }
+_cache_lock = threading.Lock()
 
 _HEADERS_HTTP = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
@@ -85,8 +92,21 @@ def _resumir_com_ia(titulo, texto):
         return _formatar_texto_simples(texto)
 
 
+def _calcular_tempo_leitura(descricao):
+    """Estima tempo de leitura baseado no número de palavras (200 palavras/min)."""
+    try:
+        texto = BeautifulSoup(descricao, "lxml").get_text() if descricao else ""
+    except Exception:
+        texto = descricao or ""
+    palavras = len(texto.split())
+    return f"{max(1, round(palavras / 200))} min"
+
+
 def _formatar_texto_simples(resumo_original):
-    texto_limpo = BeautifulSoup(resumo_original, "html.parser").get_text()
+    try:
+        texto_limpo = BeautifulSoup(resumo_original, "lxml").get_text()
+    except Exception:
+        texto_limpo = resumo_original or ""
     if len(texto_limpo) < 20:
         return [
             "Esta matéria traz atualizações curtas e diretas.",
@@ -122,18 +142,58 @@ def _extrair_imagem(entry):
                 return enc.get('href') or enc.get('url', '')
     resumo = entry.get('description', '') or entry.get('summary', '')
     if resumo:
-        soup = BeautifulSoup(resumo, 'html.parser')
+        soup = BeautifulSoup(resumo, 'lxml')
         img = soup.find('img')
         if img and img.get('src'):
             return img['src']
     return ''
 
 
-def _extrair_og_image(url):
-    """Fallback: busca og:image direto na página do artigo."""
+def _is_ip_privado(hostname):
+    """Verifica se o hostname resolve para um IP privado/reservado (proteção SSRF)."""
     try:
-        resp = requests.get(url, headers=_HEADERS_HTTP, timeout=8)
-        resp.raise_for_status()
+        resolved = socket.getaddrinfo(hostname, None)
+        for family, _type, _proto, _canonname, sockaddr in resolved:
+            ip = ipaddress.ip_address(sockaddr[0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                return True
+    except (socket.gaierror, ValueError):
+        return True
+    return False
+
+
+def _validar_url_ssrf(url):
+    """Valida URL e bloqueia IPs internos."""
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            return False
+        hostname = parsed.hostname
+        if not hostname or _is_ip_privado(hostname):
+            return False
+        return True
+    except Exception:
+        return False
+
+
+def _safe_get(url, **kwargs):
+    """GET com proteção SSRF."""
+    if not _validar_url_ssrf(url):
+        logger.warning(f"SSRF bloqueado: {url}")
+        return None
+    kwargs.setdefault('timeout', 8)
+    kwargs.setdefault('headers', _HEADERS_HTTP)
+    resp = requests.get(url, **kwargs)
+    resp.raise_for_status()
+    return resp
+
+
+def _extrair_og_image(url):
+    """Fallback: busca og:image direto na página do artigo (com proteção SSRF)."""
+    try:
+        resp = _safe_get(url)
+        if resp is None:
+            return ""
         soup = BeautifulSoup(resp.text, "html.parser")
         og = soup.find("meta", property="og:image")
         if og and og.get("content"):
@@ -143,12 +203,19 @@ def _extrair_og_image(url):
     return ""
 
 
+def _gerar_id(link):
+    return hashlib.sha256(link.encode()).hexdigest()[:12]
+
+
 def _buscar_noticias():
     noticias = []
     for categoria, fontes in FONTES_RSS.items():
         for fonte in fontes:
             try:
-                feed = feedparser.parse(fonte["url"])
+                # Usa requests com timeout para não bloquear indefinidamente
+                resp = requests.get(fonte["url"], headers=_HEADERS_HTTP, timeout=10)
+                resp.raise_for_status()
+                feed = feedparser.parse(resp.content)
                 for entry in feed.entries[:5]:
                     data_hoje = datetime.now().strftime("%d/%m/%Y")
                     descricao = entry.get("description", "") or entry.get("summary", "")
@@ -158,13 +225,14 @@ def _buscar_noticias():
                         imagem = _extrair_og_image(entry.link)
 
                     noticias.append({
+                        "id": _gerar_id(entry.link),
                         "categoria": categoria,
                         "titulo": entry.title,
                         "link_original": entry.link,
                         "fonte": fonte["nome"],
                         "bullets": _formatar_para_tdah(entry.title, descricao),
                         "data": data_hoje,
-                        "tempo_leitura": "3 min",
+                        "tempo_leitura": _calcular_tempo_leitura(descricao),
                         "imagem_url": imagem,
                     })
             except Exception as e:
@@ -183,11 +251,20 @@ def _carregar_historico():
 
 
 def _salvar_historico(noticias):
+    """Grava matérias de forma atômica para evitar corrupção."""
     try:
-        with open(ARQUIVO_NOTICIAS, "w", encoding="utf-8") as f:
+        fd, tmp_path = tempfile.mkstemp(
+            dir=str(ARQUIVO_NOTICIAS.parent), suffix=".tmp"
+        )
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(noticias[:MAX_HISTORICO], f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, str(ARQUIVO_NOTICIAS))
     except OSError as e:
         logger.error(f"Erro ao salvar histórico: {e}")
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
 
 
 def _merge_noticias(novas, existentes):
@@ -197,16 +274,17 @@ def _merge_noticias(novas, existentes):
 
 
 def _atualizar_cache():
-    agora = time.time()
-    if agora - _cache["ultima_atualizacao"] > 900:
-        novas = _buscar_noticias()
-        historico = _carregar_historico()
-        todas = _merge_noticias(novas, historico)
-        _salvar_historico(todas)
-        _cache["dados"] = todas
-        _cache["ultima_atualizacao"] = agora
-    elif not _cache["dados"]:
-        _cache["dados"] = _carregar_historico()
+    with _cache_lock:
+        agora = time.time()
+        if agora - _cache["ultima_atualizacao"] > 900:
+            novas = _buscar_noticias()
+            historico = _carregar_historico()
+            todas = _merge_noticias(novas, historico)
+            _salvar_historico(todas)
+            _cache["dados"] = todas
+            _cache["ultima_atualizacao"] = agora
+        elif not _cache["dados"]:
+            _cache["dados"] = _carregar_historico()
 
 
 def get_noticias(categoria=None):
@@ -216,5 +294,24 @@ def get_noticias(categoria=None):
     return [n for n in _cache["dados"] if n["categoria"] == categoria]
 
 
-_atualizar_cache()
-NOTICIAS = _cache["dados"]
+def get_noticias_lazy():
+    """Retorna as notícias em cache sem disparar atualização de rede (pra uso imediato)."""
+    if not _cache["dados"]:
+        _cache["dados"] = _carregar_historico()
+    return _cache["dados"]
+
+
+# NOTICIAS é resolvido sob demanda (.get_noticias()) em vez de ser carregado no import
+class _LazyNoticias:
+    """Proxy lazy: acessar data.NOTICIAS chama get_noticias() automaticamente."""
+    def __iter__(self):
+        return iter(get_noticias())
+    def __len__(self):
+        return len(get_noticias())
+    def __getitem__(self, item):
+        return get_noticias()[item]
+    def __bool__(self):
+        return bool(get_noticias())
+
+
+NOTICIAS = _LazyNoticias()

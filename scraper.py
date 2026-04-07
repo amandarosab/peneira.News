@@ -1,7 +1,10 @@
+import socket
+import ipaddress
 import feedparser
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
+from urllib.parse import urlparse
 
 class PeneiraScraper:
     """
@@ -54,11 +57,40 @@ class PeneiraScraper:
 
         return noticias_capturadas
 
+    def _is_ip_privado(self, hostname):
+        """Verifica se o hostname resolve para um IP privado/reservado."""
+        try:
+            resolved = socket.getaddrinfo(hostname, None)
+            for family, _type, _proto, _canonname, sockaddr in resolved:
+                ip = ipaddress.ip_address(sockaddr[0])
+                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                    return True
+        except (socket.gaierror, ValueError):
+            return True
+        return False
+
+    def _validar_url(self, url):
+        """Valida URL e bloqueia IPs internos (proteção SSRF)."""
+        try:
+            parsed = urlparse(url)
+            if parsed.scheme not in ("http", "https") or not parsed.netloc:
+                return False
+            hostname = parsed.hostname
+            if not hostname or self._is_ip_privado(hostname):
+                return False
+            return True
+        except Exception:
+            return False
+
     def extrair_metadados(self, url, fonte_nome, categoria):
         """
         Captura Metadados (Open Graph) para sites sem RSS (Reset, Piauí, Bits to Brands).
         Isso pega a manchete e o resumo oficial que o site preparou para o WhatsApp/Twitter.
+        Inclui proteção contra SSRF.
         """
+        if not self._validar_url(url):
+            print(f"URL rejeitada (SSRF): {url}")
+            return None
         try:
             response = requests.get(url, headers=self.headers, timeout=10)
             response.raise_for_status()

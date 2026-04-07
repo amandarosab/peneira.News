@@ -1,18 +1,38 @@
-# Environment
+# Environment & Secrets
 __pycache__/
 *.pyc
 .env
+.env.*
+!.env.example
 venv/
 env/
 .venv/
 
+# API Keys & Secrets (nunca commitar)
+*.key
+*.pem
+*.secret
+secrets.json
+config.local.py
+
 # IDEs
 .vscode/
 .idea/
+*.swp
+*.swo
 
 # OS generated files
 .DS_Store
 Thumbs.db
 
-# Cache de notícias
+# Cache de notícias (dados temporários)
 noticias_cache.json
+/tmp/
+
+# Logs
+*.log
+
+# Build / Deploy
+dist/
+build/
+*.egg-info/
