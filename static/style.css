@@ -365,7 +365,7 @@ body {
     align-items: baseline;
     gap: 15px;
     margin-bottom: 15px;
-    flex-wrap: wrap; /* Permite ajuste em telas menores, mas não quebra se tiver espaço */
+    flex-wrap: wrap; /* Permite ajuste em telas menores, e não quebra se tiver espaço */
 }
 
 .news-title {
@@ -382,7 +382,7 @@ body {
     color: var(--primary-orange);
     text-decoration: underline;
     font-size: 1.15rem;
-    white-space: nowrap; /* IMPEDE O ÍCONE DE SEPARAR DO TEXTO */    
+    white-space: nowrap; /* IMPEDE O ÍCONE DE SE SEPARAR DO TEXTO */    
 }
 
 .news-source-links {
