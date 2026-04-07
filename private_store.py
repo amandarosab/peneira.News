@@ -5,9 +5,12 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 logger = logging.getLogger(__name__)
 
 _BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(_BASE_DIR / ".env")
 _IS_VERCEL = os.environ.get("VERCEL", "") == "1"
 _LOCAL_STORE_FILE = Path("/tmp/private_submissions.json") if _IS_VERCEL else _BASE_DIR / "private_submissions.json"
 _REMOTE_STORE_ID = os.environ.get("PRIVATE_STORAGE_ID", "").strip()
@@ -28,6 +31,15 @@ except ImportError:
 
 class PrivateStoreError(RuntimeError):
     pass
+
+
+def _resolved_credentials_file():
+    if not _REMOTE_CREDENTIALS_FILE:
+        return None
+    candidate = Path(_REMOTE_CREDENTIALS_FILE)
+    if not candidate.is_absolute():
+        candidate = _BASE_DIR / candidate
+    return candidate
 
 
 _HEADERS = {
@@ -73,7 +85,9 @@ def _build_record(kind, payload):
 
 
 def _remote_enabled():
-    return bool(_REMOTE_STORE_ID and (_REMOTE_CREDENTIALS_FILE or _REMOTE_CREDENTIALS_JSON) and gspread and Credentials)
+    credentials_file = _resolved_credentials_file()
+    has_credentials = bool(_REMOTE_CREDENTIALS_JSON or (credentials_file and credentials_file.exists()))
+    return bool(_REMOTE_STORE_ID and has_credentials and gspread and Credentials)
 
 
 def _build_remote_client():
@@ -89,14 +103,19 @@ def _build_remote_client():
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive.file",
     ]
+    credentials_file = _resolved_credentials_file()
     try:
         if _REMOTE_CREDENTIALS_JSON:
             info = json.loads(_REMOTE_CREDENTIALS_JSON)
             creds = creds_factory.from_service_account_info(info, scopes=scopes)
         else:
-            creds = creds_factory.from_service_account_file(_REMOTE_CREDENTIALS_FILE, scopes=scopes)
+            if credentials_file is None or not credentials_file.exists():
+                raise PrivateStoreError("Arquivo de credenciais remoto não encontrado.")
+            creds = creds_factory.from_service_account_file(str(credentials_file), scopes=scopes)
         return gspread_module.authorize(creds)
     except Exception as exc:
+        if isinstance(exc, PrivateStoreError):
+            raise
         raise PrivateStoreError("Falha ao inicializar armazenamento remoto.") from exc
 
 
@@ -174,7 +193,10 @@ def _append_local(kind, payload):
 
 
 def get_storage_diagnostics(*, probe_remote=False):
-    remote_configured = bool(_REMOTE_STORE_ID and (_REMOTE_CREDENTIALS_FILE or _REMOTE_CREDENTIALS_JSON))
+    credentials_file = _resolved_credentials_file()
+    remote_configured = bool(
+        _REMOTE_STORE_ID and (_REMOTE_CREDENTIALS_JSON or _REMOTE_CREDENTIALS_FILE)
+    )
     remote_dependencies_ok = bool(gspread and Credentials)
 
     if _remote_enabled():
@@ -191,6 +213,7 @@ def get_storage_diagnostics(*, probe_remote=False):
         "remote_dependencies_ok": remote_dependencies_ok,
         "remote_store_id_configured": bool(_REMOTE_STORE_ID),
         "credentials_source": "json" if _REMOTE_CREDENTIALS_JSON else ("file" if _REMOTE_CREDENTIALS_FILE else "missing"),
+        "credentials_file_exists": bool(credentials_file and credentials_file.exists()),
         "local_fallback_allowed": _ALLOW_VERCEL_LOCAL_FALLBACK,
         "worksheet_suggestions": _TAB_SUGGESTIONS,
         "worksheet_contact": _TAB_CONTACT,
