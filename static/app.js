@@ -1,44 +1,9 @@
 /**
- * peneira.News — Script de carregamento de matérias (paginação) e newsletter.
+ * peneira.News — Script de formulários e carregamento de notícias.
  * Escapa todos os dados vindos da API antes de inserir no DOM.
  */
 (function () {
     'use strict';
-
-    // --- Newsletter AJAX ---
-    var newsletterForm = document.getElementById('newsletter-form');
-    var newsletterMsg = document.getElementById('newsletter-msg');
-    if (newsletterForm && newsletterMsg) {
-        newsletterForm.addEventListener('submit', function (e) {
-            e.preventDefault();
-            var emailInput = document.getElementById('newsletter-email');
-            var email = emailInput ? emailInput.value.trim() : '';
-            if (!email) return;
-
-            var btn = newsletterForm.querySelector('button[type="submit"]');
-            if (btn) btn.disabled = true;
-            newsletterMsg.textContent = 'Enviando...';
-
-            fetch('/api/newsletter', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: email })
-            })
-                .then(function (r) { return r.json(); })
-                .then(function (data) {
-                    newsletterMsg.textContent = data.mensagem || 'Obrigado!';
-                    if (data.ok && emailInput) emailInput.value = '';
-                    if (btn) btn.disabled = false;
-                })
-                .catch(function () {
-                    newsletterMsg.textContent = 'Erro ao enviar. Tente novamente.';
-                    if (btn) btn.disabled = false;
-                });
-        });
-    }
-
-    var btn = document.getElementById('btn-carregar-mais');
-    if (!btn) return;
 
     /**
      * Escapa caracteres HTML para prevenir XSS.
@@ -61,6 +26,81 @@
         }
         return '#';
     }
+
+    function setFeedback(el, message, isError) {
+        if (!el) return;
+        el.textContent = message || '';
+        el.classList.toggle('is-error', !!isError);
+        el.classList.toggle('is-success', !!message && !isError);
+    }
+
+    function serializeForm(form) {
+        var payload = {};
+        var formData = new FormData(form);
+        formData.forEach(function (value, key) {
+            payload[key] = value;
+        });
+        return payload;
+    }
+
+    function bindAsyncForm(formId, endpoint, messageId, successMessage) {
+        var form = document.getElementById(formId);
+        var feedback = document.getElementById(messageId);
+        if (!form || !feedback) return;
+
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            var payload = serializeForm(form);
+            var submitButton = form.querySelector('button[type="submit"]');
+            if (submitButton) submitButton.disabled = true;
+            setFeedback(feedback, 'Enviando...', false);
+
+            fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+                .then(function (response) {
+                    return response.json().then(function (data) {
+                        return { ok: response.ok, data: data };
+                    });
+                })
+                .then(function (result) {
+                    if (!result.ok || !result.data.ok) {
+                        throw new Error(result.data.mensagem || 'Não foi possível enviar agora.');
+                    }
+                    form.reset();
+                    setFeedback(feedback, result.data.mensagem || successMessage, false);
+                })
+                .catch(function (error) {
+                    setFeedback(feedback, error.message || 'Erro ao enviar. Tente novamente.', true);
+                })
+                .finally(function () {
+                    if (submitButton) submitButton.disabled = false;
+                });
+        });
+    }
+
+    var suggestionToggle = document.getElementById('suggestion-toggle');
+    var suggestionPanel = document.getElementById('suggestion-panel');
+    if (suggestionToggle && suggestionPanel) {
+        suggestionToggle.addEventListener('click', function () {
+            var willOpen = suggestionPanel.hasAttribute('hidden');
+            if (willOpen) {
+                suggestionPanel.removeAttribute('hidden');
+            } else {
+                suggestionPanel.setAttribute('hidden', 'hidden');
+            }
+            suggestionToggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        });
+    }
+
+    bindAsyncForm('suggestion-form', '/api/sugestoes', 'suggestion-msg', 'Sugestão enviada com sucesso.');
+    bindAsyncForm('contact-form', '/api/contato', 'contact-msg', 'Mensagem enviada com sucesso.');
+
+    var btn = document.getElementById('btn-carregar-mais');
+    if (!btn) return;
 
     btn.addEventListener('click', function () {
         var pagina = parseInt(btn.getAttribute('data-pagina'), 10);

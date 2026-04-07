@@ -17,11 +17,16 @@ import requests
 from bs4 import BeautifulSoup
 from flask import Flask, render_template, request, abort, jsonify
 from markupsafe import escape
+from dotenv import load_dotenv
+
+_BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(_BASE_DIR / ".env")
+
+from private_store import PrivateStoreError, save_submission
 
 # ==========================================
 # 0. CONFIGURAÇÃO & SEGURANÇA
 # ==========================================
-_BASE_DIR = Path(__file__).resolve().parent
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -862,54 +867,95 @@ def peneirar_link():
 
 
 # ==========================================
-# 7. NEWSLETTER
+# 7. FORMULÁRIOS
 # ==========================================
-_SUBSCRIBERS_FILE = (
-    Path("/tmp/subscribers.json") if _IS_VERCEL
-    else _BASE_DIR / "subscribers.json"
-)
-
-
-def _carregar_subscribers():
-    if _SUBSCRIBERS_FILE.exists():
-        try:
-            with open(_SUBSCRIBERS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError):
-            pass
-    return []
-
-
-def _salvar_subscribers(lista):
-    try:
-        fd, tmp = tempfile.mkstemp(dir=str(_SUBSCRIBERS_FILE.parent), suffix=".tmp")
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(lista, f, ensure_ascii=False, indent=2)
-        os.replace(tmp, str(_SUBSCRIBERS_FILE))
-    except OSError as e:
-        logger.error(f"Erro ao salvar subscribers: {e}")
-        try:
-            os.unlink(tmp)
-        except Exception:
-            pass
-
-
 _EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+_PHONE_RE = re.compile(r'^[\d\s()+-]{8,20}$')
 
 
-@app.route("/api/newsletter", methods=["POST"])
-def newsletter():
-    """Registra e-mail do visitante (stub — integrar com Resend/Mailchimp futuramente)."""
-    data = request.get_json(silent=True) or {}
-    email = str(data.get("email", "")).strip().lower()
-    if not email or not _EMAIL_RE.match(email):
-        return jsonify({"ok": False, "mensagem": "E-mail inválido."}), 400
-    subs = _carregar_subscribers()
-    if email not in subs:
-        subs.append(email)
-        _salvar_subscribers(subs)
-        logger.info(f"Novo subscriber: {email}")
-    return jsonify({"ok": True, "mensagem": "Obrigado! Você será notificado das novidades."})
+def _origem_envio():
+    return (request.headers.get("Referer") or request.base_url or "").strip()
+
+
+def _dados_json():
+    return request.get_json(silent=True) or {}
+
+
+def _texto_campo(data, campo, *, minimo=0, maximo=1000, obrigatorio=True):
+    valor = str(data.get(campo, "")).strip()
+    if obrigatorio and not valor:
+        raise ValueError(f"Preencha o campo {campo.replace('_', ' ')}.")
+    if valor and len(valor) < minimo:
+        raise ValueError(f"O campo {campo.replace('_', ' ')} está muito curto.")
+    if len(valor) > maximo:
+        raise ValueError(f"O campo {campo.replace('_', ' ')} ultrapassou o limite permitido.")
+    return valor
+
+
+@app.route("/api/sugestoes", methods=["POST"])
+def sugestoes():
+    data = _dados_json()
+    try:
+        nome = _texto_campo(data, "nome", minimo=2, maximo=120)
+        email = _texto_campo(data, "email", minimo=5, maximo=160)
+        link = _texto_campo(data, "link_sugerido", obrigatorio=False, maximo=500)
+        mensagem = _texto_campo(data, "mensagem", minimo=10, maximo=3000)
+
+        if not _EMAIL_RE.match(email):
+            raise ValueError("Informe um e-mail válido.")
+        if link and not _validar_url(link):
+            raise ValueError("Informe um link válido começando com http:// ou https://.")
+
+        save_submission(
+            "suggestion",
+            {
+                "nome": nome,
+                "email": email.lower(),
+                "link_sugerido": link,
+                "mensagem": mensagem,
+                "origem": _origem_envio(),
+            },
+        )
+        return jsonify({"ok": True, "mensagem": "Sugestão enviada com sucesso."})
+    except ValueError as exc:
+        return jsonify({"ok": False, "mensagem": str(exc)}), 400
+    except PrivateStoreError as exc:
+        logger.error(f"Erro ao salvar sugestão: {exc}")
+        return jsonify({"ok": False, "mensagem": "Não foi possível registrar sua sugestão agora."}), 503
+
+
+@app.route("/api/contato", methods=["POST"])
+def api_contato():
+    data = _dados_json()
+    try:
+        nome = _texto_campo(data, "nome", minimo=2, maximo=120)
+        sobrenome = _texto_campo(data, "sobrenome", minimo=2, maximo=120)
+        email = _texto_campo(data, "email", minimo=5, maximo=160)
+        telefone = _texto_campo(data, "telefone", minimo=8, maximo=40)
+        mensagem = _texto_campo(data, "mensagem", minimo=10, maximo=3000)
+
+        if not _EMAIL_RE.match(email):
+            raise ValueError("Informe um e-mail válido.")
+        if not _PHONE_RE.match(telefone):
+            raise ValueError("Informe um telefone válido.")
+
+        save_submission(
+            "contact",
+            {
+                "nome": nome,
+                "sobrenome": sobrenome,
+                "email": email.lower(),
+                "telefone": telefone,
+                "mensagem": mensagem,
+                "origem": _origem_envio(),
+            },
+        )
+        return jsonify({"ok": True, "mensagem": "Mensagem enviada com sucesso."})
+    except ValueError as exc:
+        return jsonify({"ok": False, "mensagem": str(exc)}), 400
+    except PrivateStoreError as exc:
+        logger.error(f"Erro ao salvar contato: {exc}")
+        return jsonify({"ok": False, "mensagem": "Não foi possível enviar sua mensagem agora."}), 503
 
 
 @app.errorhandler(429)

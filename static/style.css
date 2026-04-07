@@ -121,6 +121,122 @@ body {
     line-height: 1.8;
 }
 
+.form-card {
+    max-width: 860px;
+    padding: 28px 32px;
+    border: 1px solid #f1d5bf;
+    border-radius: 24px;
+    background: #fff8f2;
+    box-shadow: 0 10px 30px rgba(39, 39, 48, 0.05);
+}
+
+.form-intro {
+    margin-bottom: 18px;
+    color: var(--text-gray);
+}
+
+.site-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 1rem;
+    color: var(--text-dark);
+}
+
+.form-field-full {
+    grid-column: 1 / -1;
+}
+
+.form-input {
+    width: 100%;
+    border: 1px solid #e9d5c6;
+    border-radius: 16px;
+    padding: 14px 16px;
+    font-family: 'Trocchi', serif;
+    font-size: 1rem;
+    color: var(--text-dark);
+    background: var(--bg-white);
+}
+
+.form-input:focus {
+    outline: 2px solid rgba(253, 117, 6, 0.15);
+    border-color: var(--primary-orange);
+}
+
+.form-textarea {
+    min-height: 140px;
+    resize: vertical;
+}
+
+.form-actions {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+}
+
+.btn-primary,
+.suggestion-toggle {
+    background-color: var(--primary-orange);
+    color: var(--bg-white);
+    border: none;
+    border-radius: 999px;
+    padding: 14px 28px;
+    font-family: 'Trocchi', serif;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.btn-primary:hover,
+.suggestion-toggle:hover {
+    background-color: var(--dark-orange);
+    transform: translateY(-1px);
+}
+
+.suggestion-section {
+    margin-top: 48px;
+}
+
+.suggestion-card {
+    max-width: 900px;
+}
+
+.suggestion-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.form-panel {
+    margin-top: 22px;
+}
+
+.form-feedback {
+    min-height: 1.4em;
+    font-size: 0.98rem;
+}
+
+.form-feedback.is-success {
+    color: #1d7a4f;
+}
+
+.form-feedback.is-error {
+    color: #b9382f;
+}
+
 .page-section p {
     margin-bottom: 16px;
 }
@@ -327,7 +443,7 @@ body {
 
 .footer-content {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
     color: var(--bg-white);
     padding-top: 60px;
@@ -336,8 +452,8 @@ body {
     padding-right: 2px;    
 }
 
-.footer-left, .footer-right {
-    flex: 1;
+.footer-left {
+    width: 100%;
 }
 
 .footer-logo {
@@ -368,49 +484,6 @@ body {
 
 .footer-link:hover {
     opacity: 0.8;
-}
-
-.footer-right { 
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end; /* Alinha o formulário à direita */
-}
-
-.newsletter-title {
-    font-family: 'TAN Nimbus', 'Abril Fatface', serif;
-    font-size: 1.8rem;
-    margin-bottom: 15px;
-    font-weight: normal;
-    text-align: right;
-}
-
-.newsletter-form {
-    display: flex;
-    background-color: var(--bg-white);
-    padding: 6px 6px 6px 20px;
-    border-radius: 40px;
-    width: 100%;
-    max-width: 450px;
-}
-
-.newsletter-form input {
-    flex: 1;
-    border: none;
-    outline: none;
-    font-family: 'Trocchi', serif;
-    font-size: 1.05rem;
-}
-
-.newsletter-form button {
-    background-color: var(--primary-orange);
-    color: var(--bg-white);
-    border: none;
-    padding: 12px 28px;
-    border-radius: 30px;
-    font-family: 'Trocchi', serif;
-    font-weight: bold;
-    cursor: pointer;
-    font-size: 1.05rem;
 }
 
 /* Efeito Sanfona (Zig-zag) do rodapé em CSS puro */
@@ -457,6 +530,7 @@ body {
 .logo-link {
     text-decoration: none;
     color: inherit;
+    display: inline-flex;
 }
 
 /* --- PÁGINA DE DETALHE --- */
@@ -568,15 +642,6 @@ body {
 .search-result a {
     color: var(--primary-orange);
     word-break: break-all;
-}
-
-/* --- NEWSLETTER FEEDBACK --- */
-.newsletter-msg {
-    font-size: 0.95rem;
-    margin-top: 8px;
-    text-align: right;
-    min-height: 1.2em;
-    color: var(--bg-white);
 }
 
 /* ==========================================
@@ -712,26 +777,27 @@ body {
         padding-bottom: 36px;
     }
 
-    .footer-right {
-        align-items: flex-start;
-        width: 100%;
-    }
-
-    .newsletter-title {
-        text-align: left;
-        font-size: 1.5rem;
-    }
-
-    .newsletter-form {
-        max-width: 100%;
-    }
-
-    .newsletter-msg {
-        text-align: left;
-    }
-
     .footer-logo {
         font-size: 2.8rem;
+    }
+
+    .form-card {
+        padding: 22px 20px;
+    }
+
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .form-actions {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .btn-primary,
+    .suggestion-toggle {
+        width: 100%;
+        justify-content: center;
     }
 
     .detail-title {

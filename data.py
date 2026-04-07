@@ -7,7 +7,8 @@ import ipaddress
 import logging
 import tempfile
 import threading
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+from email.utils import parsedate_to_datetime
 from urllib.parse import urlparse
 from pathlib import Path
 
@@ -44,6 +45,8 @@ _HEADERS_HTTP = {
 
 ARQUIVO_NOTICIAS = Path(__file__).parent / "noticias_cache.json"
 MAX_HISTORICO = 600
+DIAS_HISTORICO = 30
+ITENS_POR_FONTE = 40
 
 # --- Detecção automática de LLM ---
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
@@ -207,6 +210,97 @@ def _gerar_id(link):
     return hashlib.sha256(link.encode()).hexdigest()[:12]
 
 
+_BRT = timezone(timedelta(hours=-3))
+
+
+def _agora_brt():
+    return datetime.now(_BRT)
+
+
+def _parse_data_noticia(valor):
+    if not valor:
+        return None
+    if isinstance(valor, datetime):
+        return valor.astimezone(_BRT) if valor.tzinfo else valor.replace(tzinfo=_BRT)
+    if isinstance(valor, str):
+        try:
+            dt = datetime.fromisoformat(valor)
+            return dt.astimezone(_BRT) if dt.tzinfo else dt.replace(tzinfo=_BRT)
+        except ValueError:
+            pass
+        try:
+            return datetime.strptime(valor, "%d/%m/%Y").replace(tzinfo=_BRT)
+        except ValueError:
+            return None
+    return None
+
+
+def _extrair_datetime_publicacao(entry):
+    for campo_raw in ("published", "updated"):
+        raw = getattr(entry, campo_raw, "") or entry.get(campo_raw, "")
+        if not raw:
+            continue
+        try:
+            dt = parsedate_to_datetime(raw)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(_BRT)
+        except Exception:
+            pass
+
+    for campo_parsed in ("published_parsed", "updated_parsed"):
+        parsed = getattr(entry, campo_parsed, None)
+        if parsed:
+            try:
+                return datetime(*parsed[:6], tzinfo=timezone.utc).astimezone(_BRT)
+            except Exception:
+                pass
+
+    return _agora_brt()
+
+
+def _normalizar_noticia(noticia):
+    noticia_norm = dict(noticia)
+    link = str(noticia_norm.get("link_original", "")).strip()
+    if not link:
+        return None
+
+    dt_publicacao = (
+        _parse_data_noticia(noticia_norm.get("data_iso"))
+        or _parse_data_noticia(noticia_norm.get("data"))
+        or _agora_brt()
+    )
+
+    noticia_norm["id"] = noticia_norm.get("id") or _gerar_id(link)
+    noticia_norm["data_iso"] = dt_publicacao.isoformat()
+    noticia_norm["data"] = dt_publicacao.strftime("%d/%m/%Y")
+    noticia_norm["bullets"] = list(noticia_norm.get("bullets") or [])
+    noticia_norm["link_original"] = link
+    return noticia_norm
+
+
+def _ordenar_noticias(noticias):
+    noticias_norm = [n for n in (_normalizar_noticia(n) for n in noticias) if n]
+    return sorted(
+        noticias_norm,
+        key=lambda noticia: _parse_data_noticia(noticia.get("data_iso")) or _agora_brt(),
+        reverse=True,
+    )
+
+
+def _filtrar_historico_recente(noticias, dias=DIAS_HISTORICO):
+    limite = (_agora_brt() - timedelta(days=dias)).date()
+    filtradas = []
+    for noticia in noticias:
+        noticia_norm = _normalizar_noticia(noticia)
+        if not noticia_norm:
+            continue
+        dt_publicacao = _parse_data_noticia(noticia_norm.get("data_iso"))
+        if dt_publicacao and dt_publicacao.date() >= limite:
+            filtradas.append(noticia_norm)
+    return _ordenar_noticias(filtradas)
+
+
 def _buscar_noticias():
     noticias = []
     for categoria, fontes in FONTES_RSS.items():
@@ -216,8 +310,8 @@ def _buscar_noticias():
                 resp = requests.get(fonte["url"], headers=_HEADERS_HTTP, timeout=10)
                 resp.raise_for_status()
                 feed = feedparser.parse(resp.content)
-                for entry in feed.entries[:5]:
-                    data_hoje = datetime.now().strftime("%d/%m/%Y")
+                for entry in feed.entries[:ITENS_POR_FONTE]:
+                    data_publicacao = _extrair_datetime_publicacao(entry)
                     descricao = entry.get("description", "") or entry.get("summary", "")
 
                     imagem = _extrair_imagem(entry)
@@ -231,20 +325,21 @@ def _buscar_noticias():
                         "link_original": entry.link,
                         "fonte": fonte["nome"],
                         "bullets": _formatar_para_tdah(entry.title, descricao),
-                        "data": data_hoje,
+                        "data": data_publicacao.strftime("%d/%m/%Y"),
+                        "data_iso": data_publicacao.isoformat(),
                         "tempo_leitura": _calcular_tempo_leitura(descricao),
                         "imagem_url": imagem,
                     })
             except Exception as e:
                 logger.error(f"Erro ao buscar {fonte['nome']}: {e}")
-    return noticias
+    return _filtrar_historico_recente(noticias)
 
 
 def _carregar_historico():
     if ARQUIVO_NOTICIAS.exists():
         try:
             with open(ARQUIVO_NOTICIAS, "r", encoding="utf-8") as f:
-                return json.load(f)
+                return _filtrar_historico_recente(json.load(f))
         except (json.JSONDecodeError, OSError):
             pass
     return []
@@ -252,12 +347,13 @@ def _carregar_historico():
 
 def _salvar_historico(noticias):
     """Grava matérias de forma atômica para evitar corrupção."""
+    noticias_filtradas = _filtrar_historico_recente(noticias)[:MAX_HISTORICO]
     try:
         fd, tmp_path = tempfile.mkstemp(
             dir=str(ARQUIVO_NOTICIAS.parent), suffix=".tmp"
         )
         with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(noticias[:MAX_HISTORICO], f, ensure_ascii=False, indent=2)
+            json.dump(noticias_filtradas, f, ensure_ascii=False, indent=2)
         os.replace(tmp_path, str(ARQUIVO_NOTICIAS))
     except OSError as e:
         logger.error(f"Erro ao salvar histórico: {e}")
@@ -268,9 +364,16 @@ def _salvar_historico(noticias):
 
 
 def _merge_noticias(novas, existentes):
-    links_existentes = {n["link_original"] for n in existentes}
-    unicas = [n for n in novas if n["link_original"] not in links_existentes]
-    return unicas + existentes
+    mescladas = {}
+    for noticia in existentes:
+        noticia_norm = _normalizar_noticia(noticia)
+        if noticia_norm:
+            mescladas[noticia_norm["link_original"]] = noticia_norm
+    for noticia in novas:
+        noticia_norm = _normalizar_noticia(noticia)
+        if noticia_norm:
+            mescladas[noticia_norm["link_original"]] = noticia_norm
+    return _ordenar_noticias(list(mescladas.values()))
 
 
 def _atualizar_cache():
@@ -281,10 +384,10 @@ def _atualizar_cache():
             historico = _carregar_historico()
             todas = _merge_noticias(novas, historico)
             _salvar_historico(todas)
-            _cache["dados"] = todas
+            _cache["dados"] = _filtrar_historico_recente(todas)
             _cache["ultima_atualizacao"] = agora
         elif not _cache["dados"]:
-            _cache["dados"] = _carregar_historico()
+            _cache["dados"] = _filtrar_historico_recente(_carregar_historico())
 
 
 def get_noticias(categoria=None):

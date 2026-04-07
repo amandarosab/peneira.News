@@ -34,10 +34,10 @@
 
     <header class="header-container container">
         <div class="logo-section">
-            <div class="logo-row">
+            <a href="/" class="logo-link logo-row">
                 <img src="{{ url_for('static', filename='favicon.ico') }}" alt="peneira.NEWS ícone" class="logo-icon">
                 <h1 class="logo">peneira.<span>NEWS</span></h1>
-            </div>
+            </a>
             <div class="slogan-badge">Filtramos o ruído, você consome somente o necessário!</div>
         </div>
         
@@ -88,7 +88,37 @@
         {% elif pagina == 'contato' %}
         <section class="page-section">
             <h2 class="section-title">Contato</h2>
-            <p>Fale conosco: <a href="mailto:contato@peneira.news">contato@peneira.news</a></p>
+            <div class="form-card contact-card">
+                <p class="form-intro">Envie sua mensagem e retornaremos pelo canal informado.</p>
+                <form id="contact-form" class="site-form" novalidate>
+                    <div class="form-grid">
+                        <label class="form-field">
+                            <span>Nome</span>
+                            <input type="text" name="nome" class="form-input" autocomplete="given-name" required>
+                        </label>
+                        <label class="form-field">
+                            <span>Sobrenome</span>
+                            <input type="text" name="sobrenome" class="form-input" autocomplete="family-name" required>
+                        </label>
+                        <label class="form-field">
+                            <span>E-mail</span>
+                            <input type="email" name="email" class="form-input" autocomplete="email" required>
+                        </label>
+                        <label class="form-field">
+                            <span>Telefone</span>
+                            <input type="tel" name="telefone" class="form-input" autocomplete="tel" required>
+                        </label>
+                        <label class="form-field form-field-full">
+                            <span>Mensagem</span>
+                            <textarea name="mensagem" class="form-input form-textarea" rows="6" required></textarea>
+                        </label>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary">Enviar mensagem</button>
+                        <p class="form-feedback" id="contact-msg" aria-live="polite"></p>
+                    </div>
+                </form>
+            </div>
         </section>
 
         {% else %}
@@ -137,6 +167,41 @@
             </button>
         </div>
         {% endif %}
+
+        <section class="suggestion-section">
+            <div class="form-card suggestion-card">
+                <button type="button" id="suggestion-toggle" class="suggestion-toggle" aria-expanded="false" aria-controls="suggestion-panel">
+                    <i class="fa-regular fa-note-sticky"></i> Tem alguma sugestão de reportagem?
+                </button>
+                <div id="suggestion-panel" class="form-panel" hidden>
+                    <p class="form-intro">Mande links de sites, pautas ou matérias que você quer ver no peneira.NEWS.</p>
+                    <form id="suggestion-form" class="site-form" novalidate>
+                        <div class="form-grid">
+                            <label class="form-field">
+                                <span>Nome</span>
+                                <input type="text" name="nome" class="form-input" autocomplete="name" required>
+                            </label>
+                            <label class="form-field">
+                                <span>E-mail</span>
+                                <input type="email" name="email" class="form-input" autocomplete="email" required>
+                            </label>
+                            <label class="form-field form-field-full">
+                                <span>Link sugerido</span>
+                                <input type="url" name="link_sugerido" class="form-input" placeholder="https://exemplo.com/materia">
+                            </label>
+                            <label class="form-field form-field-full">
+                                <span>Mensagem</span>
+                                <textarea name="mensagem" class="form-input form-textarea" rows="5" required></textarea>
+                            </label>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">Enviar sugestão</button>
+                            <p class="form-feedback" id="suggestion-msg" aria-live="polite"></p>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </section>
         {% endif %}
     </main>
 
@@ -146,15 +211,6 @@
                 <h2 class="footer-logo">peneira.<span>NEWS</span></h2>
                 <p class="footer-slogan">Filtramos o ruído, você consome somente o <span class="highlight">necessário!</span></p>
                 <p class="copyright">© 2026 Peneira News. Todos os direitos reservados. Desenvolvido por <a href="https://loscoders.com.br/" target="_blank" rel="noopener noreferrer" class="footer-link">Los Coders</a></p>
-            </div>
-            
-            <div class="footer-right">
-                <h3 class="newsletter-title">Receba direto na sua caixa de entrada</h3>
-                <form class="newsletter-form" id="newsletter-form" novalidate>
-                    <input type="email" id="newsletter-email" placeholder="Insira o seu e-mail aqui" required autocomplete="email">
-                    <button type="submit">INSCREVA-SE</button>
-                </form>
-                <p class="newsletter-msg" id="newsletter-msg" aria-live="polite"></p>
             </div>
         </div>
         <div class="footer-zigzag"></div>

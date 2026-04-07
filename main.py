@@ -162,7 +162,7 @@ elif selection in ["CULTURA E TECH", "POLÍTICA", "ECONOMIA", "CURIOSIDADES"]:
         for item in noticias:
             render_news_card(item)
     else:
-        st.info("Nada novo nesta categoria hoje.")
+        st.info("Nada novo nesta categoria nos últimos 30 dias.")
 
 elif selection == "SOBRE":
     st.markdown("## Sobre o Peneira News")

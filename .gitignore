@@ -12,8 +12,14 @@ env/
 *.key
 *.pem
 *.secret
+*credentials*.json
+*service-account*.json
+*secret*.json
 secrets.json
 config.local.py
+private_storage_credentials.json
+.secrets/
+private_submissions.json
 
 # IDEs
 .vscode/
