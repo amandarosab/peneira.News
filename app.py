@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 _BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(_BASE_DIR / ".env")
 
-from private_store import PrivateStoreError, save_submission
+from private_store import PrivateStoreError, get_storage_diagnostics, save_submission
 
 # ==========================================
 # 0. CONFIGURAÇÃO & SEGURANÇA
@@ -890,6 +890,28 @@ def _texto_campo(data, campo, *, minimo=0, maximo=1000, obrigatorio=True):
     if len(valor) > maximo:
         raise ValueError(f"O campo {campo.replace('_', ' ')} ultrapassou o limite permitido.")
     return valor
+
+
+def _diagnostic_token_configured():
+    return os.environ.get("STORAGE_DIAGNOSTIC_TOKEN", "").strip()
+
+
+def _diagnostic_token_valid():
+    expected = _diagnostic_token_configured()
+    if not expected:
+        return not os.environ.get("VERCEL", "").strip()
+    provided = request.headers.get("X-Diagnostic-Token", "").strip()
+    return provided == expected
+
+
+@app.route("/api/diagnostico/storage", methods=["GET"])
+def api_storage_diagnostics():
+    if not _diagnostic_token_valid():
+        return jsonify({"ok": False, "mensagem": "Não autorizado."}), 401
+
+    probe_remote = request.args.get("probe") == "1"
+    diagnostics = get_storage_diagnostics(probe_remote=probe_remote)
+    return jsonify({"ok": True, "storage": diagnostics})
 
 
 @app.route("/api/sugestoes", methods=["POST"])

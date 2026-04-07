@@ -13,6 +13,7 @@ _LOCAL_STORE_FILE = Path("/tmp/private_submissions.json") if _IS_VERCEL else _BA
 _REMOTE_STORE_ID = os.environ.get("PRIVATE_STORAGE_ID", "").strip()
 _REMOTE_CREDENTIALS_FILE = os.environ.get("PRIVATE_STORAGE_CREDENTIALS_FILE", "").strip()
 _REMOTE_CREDENTIALS_JSON = os.environ.get("PRIVATE_STORAGE_CREDENTIALS_JSON", "").strip()
+_ALLOW_VERCEL_LOCAL_FALLBACK = os.environ.get("PRIVATE_STORAGE_ALLOW_VERCEL_LOCAL_FALLBACK", "").strip() == "1"
 _TAB_SUGGESTIONS = os.environ.get("PRIVATE_STORAGE_TAB_SUGGESTIONS", "Sugestoes")
 _TAB_CONTACT = os.environ.get("PRIVATE_STORAGE_TAB_CONTACT", "Contato")
 _BRT = timezone(timedelta(hours=-3))
@@ -172,6 +173,46 @@ def _append_local(kind, payload):
     _write_local_store(store)
 
 
+def get_storage_diagnostics(*, probe_remote=False):
+    remote_configured = bool(_REMOTE_STORE_ID and (_REMOTE_CREDENTIALS_FILE or _REMOTE_CREDENTIALS_JSON))
+    remote_dependencies_ok = bool(gspread and Credentials)
+
+    if _remote_enabled():
+        effective_mode = "remote"
+    elif _IS_VERCEL and not _ALLOW_VERCEL_LOCAL_FALLBACK:
+        effective_mode = "blocked"
+    else:
+        effective_mode = "local"
+
+    diagnostics = {
+        "is_vercel": _IS_VERCEL,
+        "effective_mode": effective_mode,
+        "remote_configured": remote_configured,
+        "remote_dependencies_ok": remote_dependencies_ok,
+        "remote_store_id_configured": bool(_REMOTE_STORE_ID),
+        "credentials_source": "json" if _REMOTE_CREDENTIALS_JSON else ("file" if _REMOTE_CREDENTIALS_FILE else "missing"),
+        "local_fallback_allowed": _ALLOW_VERCEL_LOCAL_FALLBACK,
+        "worksheet_suggestions": _TAB_SUGGESTIONS,
+        "worksheet_contact": _TAB_CONTACT,
+    }
+
+    if probe_remote:
+        try:
+            client = _build_remote_client()
+            spreadsheet = client.open_by_key(_REMOTE_STORE_ID)
+            diagnostics["remote_probe"] = {
+                "ok": True,
+                "title": spreadsheet.title,
+            }
+        except Exception as exc:
+            diagnostics["remote_probe"] = {
+                "ok": False,
+                "error": str(exc),
+            }
+
+    return diagnostics
+
+
 def save_submission(kind, payload):
     if kind not in _HEADERS:
         raise PrivateStoreError("Tipo de envio inválido.")
@@ -179,6 +220,12 @@ def save_submission(kind, payload):
     if _remote_enabled():
         _append_remote(kind, payload)
         return "remote"
+
+    if _IS_VERCEL and not _ALLOW_VERCEL_LOCAL_FALLBACK:
+        raise PrivateStoreError(
+            "Armazenamento remoto não configurado na Vercel. "
+            "Defina PRIVATE_STORAGE_ID e PRIVATE_STORAGE_CREDENTIALS_JSON."
+        )
 
     logger.warning("Armazenamento remoto não configurado; usando fallback privado local.")
     _append_local(kind, payload)
