@@ -166,7 +166,7 @@ elif selection in ["CULTURA E TECH", "POLÍTICA", "ECONOMIA", "CURIOSIDADES"]:
 
 elif selection == "SOBRE":
     st.markdown("## Sobre o Peneira News")
-    st.write("Criado para mentes neurodivergentes, focando na essência da notícia.")
+    st.write("Filtramos o ruido, você consome somente o necessario!")
 
 elif selection == "CONTATO":
     st.markdown("## Contato")

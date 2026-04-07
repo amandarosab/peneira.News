@@ -30,8 +30,8 @@ body {
 /* Cria uma linha guia invisível para tudo ficar perfeitamente alinhado à esquerda e direita */
 .container {
     max-width: 1300px;
-    margin: 0 auto;
-    padding: 0 40px;
+    margin: 0 auto 0 4%;
+    padding: 0 32px;
 }
 
 /* --- CABEÇALHO --- */
@@ -48,6 +48,18 @@ body {
     flex-direction: column; 
     margin-top: 30px;
     align-items: flex-start; 
+}
+
+.logo-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.logo-icon {
+    width: 90px;
+    height: 90px;
+    flex-shrink: 0;
 }
 
 .logo {
@@ -205,16 +217,16 @@ body {
 
 .news-card {
     display: flex;
-    gap: 40px;
-    align-items: flex-start; /* Impede que a caixa estique verticalmente sozinha */
+    gap: 32px;
+    align-items: flex-start;
 }
 
 .news-image-placeholder {
-    width: 420px;
-    height: 280px;
+    width: 380px;
+    height: 260px;
     border: 1px solid #ddd;
     background-color: #fafafa;
-    flex-shrink: 0; /* IMPEDE QUE O TEXTO ESPREMA A IMAGEM */
+    flex-shrink: 0;
 }
 
 .news-content {
@@ -582,6 +594,11 @@ body {
         font-size: 3rem;
     }
 
+    .logo-icon {
+        width: 58px;
+        height: 58px;
+    }
+
     .detail-title {
         font-size: 2.3rem;
     }
@@ -608,6 +625,15 @@ body {
 
     .logo {
         font-size: 2.6rem;
+    }
+
+    .logo-icon {
+        width: 50px;
+        height: 50px;
+    }
+
+    .logo-row {
+        gap: 12px;
     }
 
     .slogan-badge {
@@ -713,6 +739,15 @@ body {
 @media (max-width: 480px) {
     .logo {
         font-size: 2.2rem;
+    }
+
+    .logo-icon {
+        width: 42px;
+        height: 42px;
+    }
+
+    .logo-row {
+        gap: 10px;
     }
 
     .main-nav ul {
