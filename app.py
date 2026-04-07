@@ -396,29 +396,49 @@ def _extrair_og_image_do_soup(soup):
     return ""
 
 
+def _fix_mojibake(text):
+    """Corrige encoding latin1→utf8 (ex: 'potÃªncia' → 'potência')."""
+    if not text:
+        return text
+    try:
+        fixed = text.encode("latin-1").decode("utf-8")
+        # Só usa se o resultado tem menos '?' e '�' que o original
+        if fixed.count("�") <= text.count("�"):
+            return fixed
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        pass
+    return text
+
+
 def _enriquecer_texto(soup, texto_rss):
-    """Se o texto RSS for pobre, usa o soup da página para extrair descrição melhor."""
+    """Combina og:description (limpo) + texto RSS para gerar o texto mais rico possível."""
     texto_limpo = _limpar_html(texto_rss)
 
     if soup is None:
         return texto_rss
 
+    og_text = ""
     # og:description costuma ser o melhor resumo — escrito pelo editor
     og = soup.find("meta", property="og:description")
     if og and og.get("content"):
-        og_text = og["content"].strip()
-        # Usa og:description se for mais substancial que o RSS
-        if len(og_text) > 60 and (len(og_text) > len(texto_limpo) or len(texto_limpo) < 120):
-            return og_text
+        og_text = _fix_mojibake(og["content"].strip())
+
+    meta_text = ""
+    meta = soup.find("meta", attrs={"name": "description"})
+    if meta and meta.get("content"):
+        meta_text = _fix_mojibake(meta["content"].strip())
+
+    melhor_meta = og_text if len(og_text) >= len(meta_text) else meta_text
+
+    if melhor_meta and len(melhor_meta) > 60:
+        # Combina: og:description no início + RSS depois, para ter mais frases
+        if len(texto_limpo) > 80 and melhor_meta not in texto_limpo:
+            return melhor_meta + " " + texto_limpo
+        return melhor_meta if len(melhor_meta) >= len(texto_limpo) else texto_rss
 
     # Se já temos bastante texto do RSS, usa ele
     if len(texto_limpo) >= 150:
         return texto_rss
-
-    # meta description como fallback
-    meta = soup.find("meta", attrs={"name": "description"})
-    if meta and meta.get("content") and len(meta["content"].strip()) > len(texto_limpo):
-        return meta["content"].strip()
 
     # Último recurso: primeiros <p> do artigo
     article = soup.find("article") or soup.find(
