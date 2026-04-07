@@ -8,7 +8,7 @@ import ipaddress
 import logging
 import tempfile
 import threading
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse
 from pathlib import Path
 
@@ -203,6 +203,8 @@ def resumir_com_ia(titulo, texto):
                             "- Use linguagem simples e direta\n"
                             "- Comece cada frase com um verbo ou dado concreto\n"
                             "- Sem introduções — vá direto ao ponto\n"
+                            "- NUNCA traduza nomes próprios (pessoas, empresas, marcas, lugares). "
+                            "Mantenha-os exatamente como no texto original\n"
                             "- Separe cada frase por \\n"
                         ),
                     },
@@ -252,11 +254,13 @@ def _limpar_html(raw):
         texto = raw
     # colapsa espaços
     texto = re.sub(r"\s+", " ", texto).strip()
-    # remove emojis
+    # remove TODOS os emojis/símbolos Unicode (range amplo)
     texto = re.sub(
-        r"[\U0001F300-\U0001F9FF\U00002600-\U000027BF\U0001FA00-\U0001FAFF]+",
-        " ", texto
+        r"[\U0001F000-\U0001FFFF\U00002600-\U000027BF\U0000FE00-\U0000FE0F\U0000200D]+",
+        "", texto
     ).strip()
+    # remove variation selectors isolados que sobram (️)
+    texto = re.sub(r"\uFE0F", "", texto)
     # remove chamadas de navegação/CTA comuns em portais BR
     _LIXO_PATTERNS = [
         r"Leia mais.*$",
@@ -266,13 +270,14 @@ def _limpar_html(raw):
         r"Veja (os vídeos|mais|também).*?(g1|uol|globo)\.?",
         r"Mande para o g1.*$",
         r"The post .+? appeared first on .+?\.?$",
-        r"🗒️.*?(g1|uol)\b.*$",
-        r"🔎.*$",
         r"Tem alguma sugestão.*$",
         r"Assine\b.*$",
+        r"Entenda\s+embate.*$",
     ]
     for pat in _LIXO_PATTERNS:
         texto = re.sub(pat, "", texto, flags=re.IGNORECASE).strip()
+    # normaliza pontuação estranha: ". ️." → "."
+    texto = re.sub(r"\.\s*\.", ".", texto)
     # colapsa espaços restantes
     texto = re.sub(r"\s+", " ", texto).strip()
     return texto
@@ -361,16 +366,33 @@ def _formatar_texto_simples(texto_limpo, titulo=""):
         # normaliza pontuação
         if frase[-1] not in ".!?…":
             frase = frase.rstrip(",;:") + "."
-        # trunca frases excessivamente longas (~2 linhas)
+        # Frases muito longas: tenta cortar numa vírgula/ponto-e-vírgula natural
         if len(frase) > 200:
-            frase = frase[:197].rsplit(" ", 1)[0] + "..."
+            # Procura o último separador natural antes de 200 chars
+            corte = frase[:200]
+            for sep in ["; ", ", que ", ", segundo ", ", de acordo ", ", após ", ", mas ", ", e "]:
+                pos = corte.rfind(sep)
+                if pos > 80:  # garante que não fique curto demais
+                    frase = corte[:pos].rstrip(",;: ") + "."
+                    break
+            else:
+                # Sem separador natural — corta na última palavra completa
+                frase = corte.rsplit(" ", 1)[0].rstrip(",;: ") + "."
         bullets.append(frase)
         if len(bullets) == 3:
             break
 
     if not bullets:
-        trecho = texto_limpo[:250].rsplit(" ", 1)[0]
-        bullets.append(trecho.rstrip(".,;: ") + ".")
+        # Pega o primeiro trecho significativo e corta em frase
+        trecho = texto_limpo[:300]
+        for sep in [". ", "; ", ", "]:
+            pos = trecho.find(sep, 40)
+            if pos > 0:
+                trecho = trecho[:pos + 1]
+                break
+        else:
+            trecho = trecho.rsplit(" ", 1)[0].rstrip(",;: ") + "."
+        bullets.append(trecho.strip())
 
     return bullets
 
@@ -431,6 +453,9 @@ def _enriquecer_texto(soup, texto_rss):
     melhor_meta = og_text if len(og_text) >= len(meta_text) else meta_text
 
     if melhor_meta and len(melhor_meta) > 60:
+        # Garante que og:description termina com pontuação
+        if melhor_meta[-1] not in ".!?…":
+            melhor_meta = melhor_meta.rstrip(",;: ") + "."
         # Combina: og:description no início + RSS depois, para ter mais frases
         if len(texto_limpo) > 80 and melhor_meta not in texto_limpo:
             return melhor_meta + " " + texto_limpo
@@ -537,6 +562,56 @@ def _gerar_id(link):
     return hashlib.sha256(link.encode()).hexdigest()[:12]
 
 
+# Fuso horário de Brasília (UTC-3)
+_BRT = timezone(timedelta(hours=-3))
+
+# Padrões comuns de data em RSS para parse manual
+_RE_DATA_RSS = re.compile(
+    r"(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})",
+    re.IGNORECASE,
+)
+_MESES = {
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+}
+
+
+def _extrair_data_publicacao(entry):
+    """Extrai a data de publicação respeitando timezone → converte pra BRT."""
+    # 1) Tenta parsear a string raw com offset (mais preciso)
+    for campo_raw in ("published", "updated"):
+        raw = getattr(entry, campo_raw, "") or entry.get(campo_raw, "")
+        if not raw:
+            continue
+        try:
+            from email.utils import parsedate_to_datetime
+            dt = parsedate_to_datetime(raw)  # respeita offset do RSS
+            dt_brt = dt.astimezone(_BRT)
+            return dt_brt.strftime("%d/%m/%Y")
+        except Exception:
+            pass
+        # Fallback: regex pra extrair dia/mês/ano da string
+        m = _RE_DATA_RSS.search(raw)
+        if m:
+            dia, mes_nome, ano = m.groups()
+            mes = _MESES.get(mes_nome[:3].lower())
+            if mes:
+                return f"{int(dia):02d}/{mes:02d}/{ano}"
+
+    # 2) Fallback absoluto: published_parsed em UTC → BRT
+    for campo_parsed in ("published_parsed", "updated_parsed"):
+        parsed = getattr(entry, campo_parsed, None)
+        if parsed:
+            try:
+                dt_utc = datetime(*parsed[:6], tzinfo=timezone.utc)
+                dt_brt = dt_utc.astimezone(_BRT)
+                return dt_brt.strftime("%d/%m/%Y")
+            except Exception:
+                pass
+
+    return datetime.now(_BRT).strftime("%d/%m/%Y")
+
+
 # ==========================================
 # 5. MOTOR DE BUSCA DE NOTÍCIAS
 # ==========================================
@@ -550,7 +625,8 @@ def buscar_noticias_automaticamente():
                 resp.raise_for_status()
                 feed = feedparser.parse(resp.content)
                 for entry in feed.entries[:5]:
-                    data_hoje = datetime.now().strftime("%d/%m/%Y")
+                    # Extrai a data real de publicação do RSS
+                    data_pub = _extrair_data_publicacao(entry)
 
                     # Extrai o texto mais rico possível do RSS
                     descricao = _extrair_descricao_completa(entry)
@@ -573,7 +649,7 @@ def buscar_noticias_automaticamente():
                         "link_original": entry.link,
                         "fonte": fonte["nome"],
                         "bullets": formatar_para_tdah(entry.title, descricao),
-                        "data": data_hoje,
+                        "data": data_pub,
                         "tempo_leitura": _calcular_tempo_leitura(descricao),
                         "imagem_url": imagem,
                     }
