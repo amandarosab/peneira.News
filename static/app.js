@@ -157,14 +157,14 @@
                 if (data.tem_mais) {
                     btn.setAttribute('data-pagina', pagina + 1);
                     btn.disabled = false;
-                    btn.innerHTML = '<i class="fa-solid fa-angles-down"></i> Carregar mais matérias';
+                    btn.innerHTML = '<i class="fa-solid fa-angles-down"></i> Carregar mais notícias';
                 } else {
                     btn.parentElement.remove();
                 }
             })
             .catch(function () {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-angles-down"></i> Carregar mais matérias';
+                btn.innerHTML = '<i class="fa-solid fa-angles-down"></i> Carregar mais notícias';
             });
     });
 })();
