@@ -11,3 +11,21 @@ This PoC requires control over a DNS name (e.g., `poc.example.com`). The PoC ser
 Notes:
 - Modern browsers apply mitigations; to test effectively you may need to control TTL and response headers.
 - Use this only on systems you own or explicitly are authorized to test.
+
+Quick run (local testing with ngrok)
+
+1. Start the PoC server locally:
+
+```bash
+python scripts/dns_rebind_server.py
+```
+
+2. Expose with ngrok (HTTP):
+
+```bash
+ngrok http 8080
+```
+
+3. Point your test domain to the ngrok URL (or visit the ngrok URL directly) and follow steps above.
+
+Windows note: run the same `python` command from PowerShell.

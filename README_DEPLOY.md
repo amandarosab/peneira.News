@@ -26,7 +26,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 export SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
 export RATE_LIMIT_STORAGE_URI="redis://:password@redis-host:6379/0"
-# configure PRIVATE_STORAGE_* if you want remote storage
+# configure PRIVATE_STORAGE_* 
 python -m flask run --host=0.0.0.0 --port=8000
 ```
 

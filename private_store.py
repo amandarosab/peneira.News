@@ -19,6 +19,7 @@ _REMOTE_CREDENTIALS_JSON = os.environ.get("PRIVATE_STORAGE_CREDENTIALS_JSON", ""
 _ALLOW_VERCEL_LOCAL_FALLBACK = os.environ.get("PRIVATE_STORAGE_ALLOW_VERCEL_LOCAL_FALLBACK", "").strip() == "1"
 _TAB_SUGGESTIONS = os.environ.get("PRIVATE_STORAGE_TAB_SUGGESTIONS", "Sugestoes")
 _TAB_CONTACT = os.environ.get("PRIVATE_STORAGE_TAB_CONTACT", "Contato")
+_PRIVATE_STORE_ALERT_WEBHOOK = os.environ.get("PRIVATE_STORE_ALERT_WEBHOOK", "").strip()
 _BRT = timezone(timedelta(hours=-3))
 
 try:
@@ -249,6 +250,19 @@ def save_submission(kind, payload):
             return "remote"
         except Exception as exc:
             logger.error(f"Falha ao gravar no armazenamento remoto: {exc}")
+            # optional alert webhook for ops/monitoring
+            if _PRIVATE_STORE_ALERT_WEBHOOK:
+                try:
+                    import requests
+
+                    requests.post(_PRIVATE_STORE_ALERT_WEBHOOK, json={
+                        "event": "private_store.remote_failure",
+                        "error": str(exc),
+                        "kind": kind,
+                        "time": datetime.now(_BRT).isoformat(),
+                    }, timeout=3)
+                except Exception:
+                    logger.exception("Falha ao notificar webhook de alerta do private_store")
             if strict_remote:
                 # Repassa erro para o chamador — ambiente exige remoto.
                 raise PrivateStoreError("Falha ao gravar no armazenamento remoto.") from exc

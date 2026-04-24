@@ -739,12 +739,15 @@ def img_proxy():
     if not content_type.startswith("image/"):
         abort(400)
 
+    # Early reject when Content-Length header explicitly exceeds limit
     content_length = resp.headers.get("Content-Length")
     if content_length:
         try:
             if int(content_length) > max_size:
+                logger.warning(f"img_proxy: Content-Length {content_length} exceeds max {max_size}")
                 abort(413)
         except Exception:
+            # malformed header -> continue to streaming-safe path
             pass
 
     # Stream to temp file with size check
@@ -763,7 +766,16 @@ def img_proxy():
                     except Exception:
                         pass
                     abort(413)
-                handle.write(chunk)
+                try:
+                    handle.write(chunk)
+                except Exception:
+                    # Disk write error -> fail
+                    try:
+                        if os.path.exists(tmp_path):
+                            os.unlink(tmp_path)
+                    except Exception:
+                        pass
+                    abort(500)
         # move tmp to cache_file atomically
         os.replace(tmp_path, str(cache_file))
     except Exception:
@@ -773,6 +785,41 @@ def img_proxy():
         except Exception:
             pass
         abort(500)
+
+    # Verify magic bytes to ensure the downloaded content is actually an image
+    try:
+        with open(cache_file, "rb") as f:
+            hdr = f.read(16)
+    except Exception:
+        abort(500)
+
+    def _looks_like_image(hdr_bytes):
+        if not hdr_bytes:
+            return False
+        # PNG
+        if hdr_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+            return True
+        # JPEG
+        if hdr_bytes.startswith(b"\xff\xd8\xff"):
+            return True
+        # GIF
+        if hdr_bytes[:3] in (b"GIF",):
+            return True
+        # WebP (RIFF....WEBP)
+        if hdr_bytes[:4] == b"RIFF" and hdr_bytes[8:12] == b"WEBP":
+            return True
+        # BMP
+        if hdr_bytes.startswith(b"BM"):
+            return True
+        return False
+
+    if not _looks_like_image(hdr):
+        # remove cache file for safety
+        try:
+            os.unlink(cache_file)
+        except Exception:
+            pass
+        abort(400)
 
     return send_file(str(cache_file), mimetype=content_type)
 
