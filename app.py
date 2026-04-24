@@ -676,7 +676,61 @@ def img_proxy():
 
     # Fetch remoto com limites
     try:
-        resp = requests.get(url, headers=_HEADERS_HTTP, stream=True, timeout=8)
+        # Resolve hostname first to detect private/reserved IPs (mitiga SSRF/DNS rebinding TOCTOU parcialmente)
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        try:
+            resolved = socket.getaddrinfo(hostname, parsed.port or (443 if parsed.scheme == 'https' else 80))
+            addrs = [sockaddr[0] for (_family, _type, _proto, _canonname, sockaddr) in resolved]
+            for ip_str in addrs:
+                try:
+                    ip = ipaddress.ip_address(ip_str)
+                    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                        logger.warning(f"SSRF bloqueado: hostname resolves to private IP -> {hostname} -> {ip}")
+                        abort(400)
+                except Exception:
+                    continue
+        except Exception:
+            # falha ao resolver -> bloquear por segurança
+            logger.warning(f"SSRF bloqueado: falha ao resolver hostname -> {hostname}")
+            abort(400)
+
+        # Use a session that ignores environment proxies to avoid unexpected proxying
+        sess = requests.Session()
+        sess.trust_env = False
+        resp = sess.get(url, headers=_HEADERS_HTTP, stream=True, timeout=8, allow_redirects=False)
+        # Se a resposta for um redirect, revalide o Location antes de seguir
+        if 300 <= resp.status_code < 400:
+            loc = resp.headers.get('Location')
+            if not loc:
+                abort(502)
+            new_url = urlparse(loc)
+            # Resolve relative locations
+            if not new_url.scheme:
+                loc = urllib.parse.urljoin(url, loc)
+                new_url = urlparse(loc)
+            # Validate new location
+            if not _validar_url(loc):
+                logger.warning(f"SSRF bloqueado: redirect location inválida -> {loc}")
+                abort(400)
+            # Re-resolve and check IPs
+            try:
+                resolved2 = socket.getaddrinfo(new_url.hostname, new_url.port or (443 if new_url.scheme == 'https' else 80))
+                addrs2 = [sockaddr[0] for (_family, _type, _proto, _canonname, sockaddr) in resolved2]
+                for ip_str in addrs2:
+                    try:
+                        ip = ipaddress.ip_address(ip_str)
+                        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                            logger.warning(f"SSRF bloqueado: redirect resolves to private IP -> {loc} -> {ip}")
+                            abort(400)
+                    except Exception:
+                        continue
+            except Exception:
+                logger.warning(f"SSRF bloqueado: falha ao resolver redirect hostname -> {new_url.hostname}")
+                abort(400)
+            # Fetch the redirected URL (once) after validation
+            resp = sess.get(loc, headers=_HEADERS_HTTP, stream=True, timeout=8, allow_redirects=False)
+
         resp.raise_for_status()
     except Exception:
         abort(502)
