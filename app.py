@@ -687,13 +687,13 @@ def img_proxy():
                     ip = ipaddress.ip_address(ip_str)
                     if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
                         logger.warning(f"SSRF bloqueado: hostname resolves to private IP -> {hostname} -> {ip}")
-                        abort(400)
+                        return ("", 400)
                 except Exception:
                     continue
         except Exception:
             # falha ao resolver -> bloquear por segurança
             logger.warning(f"SSRF bloqueado: falha ao resolver hostname -> {hostname}")
-            abort(400)
+            return ("", 400)
 
         # Use a session that ignores environment proxies to avoid unexpected proxying
         sess = requests.Session()
@@ -703,7 +703,7 @@ def img_proxy():
         if 300 <= resp.status_code < 400:
             loc = resp.headers.get('Location')
             if not loc:
-                abort(502)
+                return ("", 502)
             new_url = urlparse(loc)
             # Resolve relative locations
             if not new_url.scheme:
@@ -712,7 +712,7 @@ def img_proxy():
             # Validate new location
             if not _validar_url(loc):
                 logger.warning(f"SSRF bloqueado: redirect location inválida -> {loc}")
-                abort(400)
+                return ("", 400)
             # Re-resolve and check IPs
             try:
                 resolved2 = socket.getaddrinfo(new_url.hostname, new_url.port or (443 if new_url.scheme == 'https' else 80))
@@ -732,7 +732,15 @@ def img_proxy():
             resp = sess.get(loc, headers=_HEADERS_HTTP, stream=True, timeout=8, allow_redirects=False)
 
         resp.raise_for_status()
-    except Exception:
+    except Exception as exc:
+        # Re-raise HTTPExceptions (like abort(400)) so they propagate correctly;
+        # convert only unexpected errors to 502.
+        try:
+            from werkzeug.exceptions import HTTPException
+            if isinstance(exc, HTTPException):
+                raise
+        except Exception:
+            pass
         abort(502)
 
     content_type = resp.headers.get("Content-Type", "")
@@ -745,7 +753,7 @@ def img_proxy():
         try:
             if int(content_length) > max_size:
                 logger.warning(f"img_proxy: Content-Length {content_length} exceeds max {max_size}")
-                abort(413)
+                return ("", 413)
         except Exception:
             # malformed header -> continue to streaming-safe path
             pass
@@ -765,7 +773,7 @@ def img_proxy():
                         os.unlink(tmp_path)
                     except Exception:
                         pass
-                    abort(413)
+                    return ("", 413)
                 try:
                     handle.write(chunk)
                 except Exception:
