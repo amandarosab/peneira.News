@@ -2,7 +2,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Trocchi&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Abril+Fatface&display=swap');
 
-/* VARIÁVEIS DE CORES DO SEU DESIGN */
+/* VARIÁVEIS DE CORES DO FRONT */
 :root {
     --primary-orange: #fd7506;
     --dark-orange: #d76100;
@@ -12,7 +12,7 @@
     --badge-bg: #ffdfc4;
 }
 
-/* RESET GERAL */
+/* GERAL */
 * { 
     margin: 0; 
     padding: 0; 
@@ -26,15 +26,13 @@ body {
     line-height: 1.6;
 }
 
-/* --- ALINHAMENTO GERAL (CONTAINER) --- */
-/* Cria uma linha guia invisível para tudo ficar perfeitamente alinhado à esquerda e direita */
 .container {
     max-width: 1300px;
     margin: 0 auto;
     padding: 0 40px;
 }
 
-/* --- CABEÇALHO --- */
+/* CABEÇALHO */
 .header-container {
     display: flex;
     justify-content: space-between;
@@ -114,7 +112,7 @@ body {
     padding-bottom: 3px;
 }
 
-/* --- PÁGINAS SOBRE / CONTATO --- */
+/* PÁGINAS SOBRE / CONTATO */
 .page-section {
     padding: 40px 0 80px;
     font-size: 1.2rem;
@@ -255,7 +253,7 @@ body {
     padding: 40px 0;
 }
 
-/* --- BOTÃO CARREGAR MAIS --- */
+/* BOTÃO CARREGAR MAIS */
 .load-more-container {
     display: flex;
     justify-content: center;
@@ -289,7 +287,7 @@ body {
     margin-right: 6px;
 }
 
-/* --- BARRA DE BUSCA --- */
+/* BARRA DE BUSCA */
 .search-section {
     margin-bottom: 50px;
     margin-top: 50px;   
@@ -328,7 +326,7 @@ body {
     font-size: 1.5rem;
 }
 
-/* --- CARDS DE NOTÍCIAS --- */
+/* CARDS DE NOTÍCIAS */
 .main-content {
     padding-bottom: 80px;
 }
@@ -434,7 +432,7 @@ body {
     margin-right: 6px;
 }
 
-/* --- RODAPÉ --- */
+/* RODAPÉ */
 .footer-container {
     background-color: var(--dark-orange);
     position: relative;
@@ -498,9 +496,9 @@ body {
     bottom: 0;
 }
 
-/* --- FEEDBACK DE BUSCA --- */
+/* FEEDBACK DE BUSCA */
 
-/* --- TÍTULO CLICÁVEL NOS CARDS --- */
+/* TÍTULO CLICÁVEL NOS CARDS */
 .news-title-link {
     color: var(--primary-orange);
     text-decoration: none;
@@ -512,7 +510,7 @@ body {
     color: var(--dark-orange);
 }
 
-/* --- LINK "VOLTAR" NA PÁGINA DE DETALHE --- */
+/* LINK "VOLTAR" NA PÁGINA DE DETALHE */
 .back-link {
     display: inline-block;
     margin-bottom: 28px;
@@ -533,7 +531,7 @@ body {
     display: inline-flex;
 }
 
-/* --- PÁGINA DE DETALHE --- */
+/* PÁGINA DE DETALHE */
 .detail-article {
     max-width: 860px;
 }

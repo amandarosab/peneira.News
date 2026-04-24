@@ -15,7 +15,9 @@ from pathlib import Path
 import feedparser
 import requests
 from bs4 import BeautifulSoup
-from flask import Flask, render_template, request, abort, jsonify
+from flask import Flask, render_template, request, abort, jsonify, send_file
+from werkzeug.middleware.proxy_fix import ProxyFix
+import mimetypes
 from markupsafe import escape
 from dotenv import load_dotenv
 
@@ -36,6 +38,8 @@ app = Flask(
     template_folder=str(_BASE_DIR / "templates"),
     static_folder=str(_BASE_DIR / "static"),
 )
+# Trust a single proxy (e.g. Vercel/Cloudflare) for X-Forwarded headers when present
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 _secret = os.environ.get('SECRET_KEY', '').strip()
 if not _secret:
     logger.warning("SECRET_KEY não definida! Usando chave aleatória (inseguro em produção).")
@@ -54,7 +58,7 @@ def aplicar_headers_seguranca(response):
         "default-src 'self'; "
         "style-src 'self' https://cdnjs.cloudflare.com https://fonts.googleapis.com 'unsafe-inline'; "
         "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
-        "img-src 'self' https: data:; "
+        "img-src 'self'; "
         "script-src 'self'; "
         "connect-src 'self'; "
         "frame-ancestors 'none';"
@@ -645,6 +649,89 @@ def _safe_request_get(url, **kwargs):
     resp = requests.get(url, **kwargs)
     resp.raise_for_status()
     return resp
+
+
+@app.route("/img_proxy")
+def img_proxy():
+    """Proxy simples de imagens para evitar hotlinking e vazamento de IP.
+
+    - Valida URL com `_validar_url`
+    - Limita tamanho (2MB por padrão)
+    - Faz cache em `tempfile.gettempdir()/peneira_img_cache`
+    - Serve apenas conteúdo com `Content-Type` começando com `image/`
+    """
+    url = request.args.get("u", "").strip()
+    if not url or not _validar_url(url):
+        abort(400)
+
+    cache_dir = Path(tempfile.gettempdir()) / "peneira_img_cache"
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+
+    key = hashlib.sha256(url.encode()).hexdigest()
+    cache_file = cache_dir / key
+    cache_ttl = 60 * 60  # 1 hora
+    max_size = 2_000_000  # 2 MB
+
+    # Serve do cache se válido
+    try:
+        if cache_file.exists() and (time.time() - cache_file.stat().st_mtime) < cache_ttl:
+            mime_type, _ = mimetypes.guess_type(str(cache_file))
+            if not mime_type:
+                mime_type = "image/*"
+            return send_file(str(cache_file), mimetype=mime_type)
+    except Exception:
+        pass
+
+    # Fetch remoto com limites
+    try:
+        resp = requests.get(url, headers=_HEADERS_HTTP, stream=True, timeout=8)
+        resp.raise_for_status()
+    except Exception:
+        abort(502)
+
+    content_type = resp.headers.get("Content-Type", "")
+    if not content_type.startswith("image/"):
+        abort(400)
+
+    content_length = resp.headers.get("Content-Length")
+    if content_length:
+        try:
+            if int(content_length) > max_size:
+                abort(413)
+        except Exception:
+            pass
+
+    # Stream to temp file with size check
+    tmp_fd, tmp_path = tempfile.mkstemp(dir=str(cache_dir), suffix=".imgtmp")
+    downloaded = 0
+    try:
+        with os.fdopen(tmp_fd, "wb") as handle:
+            for chunk in resp.iter_content(8192):
+                if not chunk:
+                    break
+                downloaded += len(chunk)
+                if downloaded > max_size:
+                    handle.close()
+                    try:
+                        os.unlink(tmp_path)
+                    except Exception:
+                        pass
+                    abort(413)
+                handle.write(chunk)
+        # move tmp to cache_file atomically
+        os.replace(tmp_path, str(cache_file))
+    except Exception:
+        try:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+        except Exception:
+            pass
+        abort(500)
+
+    return send_file(str(cache_file), mimetype=content_type)
 
 
 def extrair_og_image(url):
