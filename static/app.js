@@ -48,6 +48,21 @@
         var feedback = document.getElementById(messageId);
         if (!form || !feedback) return;
 
+        var _csrfToken = null;
+        function getCsrfToken() {
+            if (_csrfToken) return Promise.resolve(_csrfToken);
+            return fetch('/api/csrf-token', { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data && data.ok && data.csrf_token) {
+                        _csrfToken = data.csrf_token;
+                        return _csrfToken;
+                    }
+                    return null;
+                })
+                .catch(function () { return null; });
+        }
+
         form.addEventListener('submit', function (e) {
             e.preventDefault();
 
@@ -56,10 +71,16 @@
             if (submitButton) submitButton.disabled = true;
             setFeedback(feedback, 'Enviando...', false);
 
-            fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+            getCsrfToken().then(function (token) {
+                var headers = { 'Content-Type': 'application/json' };
+                if (token) headers['X-CSRFToken'] = token;
+
+                return fetch(endpoint, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: headers,
+                    body: JSON.stringify(payload)
+                });
             })
                 .then(function (response) {
                     return response.json().then(function (data) {

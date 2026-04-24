@@ -7,3 +7,6 @@ lxml>=5.0,<6.0
 gspread>=6.0,<7.0
 google-auth>=2.29,<3.0
 python-dotenv>=1.0,<2.0
+flask-limiter>=2.0
+Flask-WTF>=1.1
+redis>=4.0

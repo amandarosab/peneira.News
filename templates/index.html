@@ -29,6 +29,7 @@
           integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
           crossorigin="anonymous"
           referrerpolicy="no-referrer">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
 
@@ -56,6 +57,7 @@
 
     <section class="search-section container">
         <form action="/peneirar" method="POST" class="search-bar" id="search-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="url"
                    name="url_digitada"
                    placeholder="Insira o seu link externo aqui..."

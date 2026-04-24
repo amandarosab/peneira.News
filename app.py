@@ -18,6 +18,10 @@ from bs4 import BeautifulSoup
 from flask import Flask, render_template, request, abort, jsonify, send_file
 from werkzeug.middleware.proxy_fix import ProxyFix
 import mimetypes
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_wtf import CSRFProtect
+from flask_wtf.csrf import generate_csrf
 from markupsafe import escape
 from dotenv import load_dotenv
 
@@ -66,12 +70,6 @@ def aplicar_headers_seguranca(response):
     return response
 
 # --- Rate limiting simples (sem dependência extra) ---
-_rate_limit = {}
-RATE_LIMIT_MAX = 30          # máx requisições
-RATE_LIMIT_WINDOW = 60       # por janela de segundos
-_RATE_LIMIT_CLEANUP_INTERVAL = 300  # limpa entradas expiradas a cada 5 min
-_rate_limit_last_cleanup = 0
-
 def _obter_ip_real():
     """Obtém IP real do cliente, mesmo atrás de proxy reverso (Vercel/Cloudflare)."""
     forwarded = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
@@ -79,30 +77,16 @@ def _obter_ip_real():
         return forwarded
     return request.remote_addr or '0.0.0.0'
 
-def _limpar_rate_limit_expirados():
-    """Remove entradas expiradas para evitar memory exhaustion."""
-    global _rate_limit_last_cleanup
-    agora = time.time()
-    if agora - _rate_limit_last_cleanup < _RATE_LIMIT_CLEANUP_INTERVAL:
-        return
-    _rate_limit_last_cleanup = agora
-    expirados = [ip for ip, reg in _rate_limit.items() if agora - reg['inicio'] > RATE_LIMIT_WINDOW]
-    for ip in expirados:
-        del _rate_limit[ip]
+# --- Rate limiter (flask-limiter) ---
+# Usa storage URI em RATE_LIMIT_STORAGE_URI (ex: redis://...) e cai para memória se não configurado
+limiter = Limiter(key_func=lambda: _obter_ip_real(), storage_uri=os.environ.get('RATE_LIMIT_STORAGE_URI', 'memory://'), default_limits=[os.environ.get('RATE_LIMIT_DEFAULT', '60 per minute')])
+limiter.init_app(app)
 
-@app.before_request
-def limitar_requisicoes():
-    _limpar_rate_limit_expirados()
-    ip = _obter_ip_real()
-    agora = time.time()
-    with _rate_limit_lock:
-        registro = _rate_limit.get(ip, {"contagem": 0, "inicio": agora})
-        if agora - registro["inicio"] > RATE_LIMIT_WINDOW:
-            registro = {"contagem": 0, "inicio": agora}
-        registro["contagem"] += 1
-        _rate_limit[ip] = registro
-        if registro["contagem"] > RATE_LIMIT_MAX:
-            abort(429)
+# --- CSRF protection ---
+csrf = CSRFProtect()
+csrf.init_app(app)
+# disponibiliza helper `csrf_token()` nos templates
+app.jinja_env.globals['csrf_token'] = generate_csrf
 
 # ==========================================
 # 1. CONFIGURAÇÃO DAS FONTES REAIS (RSS)
@@ -1034,6 +1018,15 @@ def api_storage_diagnostics():
     probe_remote = request.args.get("probe") == "1"
     diagnostics = get_storage_diagnostics(probe_remote=probe_remote)
     return jsonify({"ok": True, "storage": diagnostics})
+
+
+@app.route('/api/csrf-token', methods=['GET'])
+def api_csrf_token():
+    try:
+        token = generate_csrf()
+        return jsonify({'ok': True, 'csrf_token': token})
+    except Exception:
+        return jsonify({'ok': False}), 500
 
 
 @app.route("/api/sugestoes", methods=["POST"])
