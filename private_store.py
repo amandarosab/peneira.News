@@ -239,17 +239,29 @@ def get_storage_diagnostics(*, probe_remote=False):
 def save_submission(kind, payload):
     if kind not in _HEADERS:
         raise PrivateStoreError("Tipo de envio inválido.")
+    # Se remoto está habilitado, tenta gravar remotamente. Se falhar,
+    # tenta fallback local a menos que a implantação exija remoto estrito.
+    strict_remote = os.environ.get("PRIVATE_STORAGE_STRICT_REMOTE", "0").strip() == "1"
 
     if _remote_enabled():
-        _append_remote(kind, payload)
-        return "remote"
+        try:
+            _append_remote(kind, payload)
+            return "remote"
+        except Exception as exc:
+            logger.error(f"Falha ao gravar no armazenamento remoto: {exc}")
+            if strict_remote:
+                # Repassa erro para o chamador — ambiente exige remoto.
+                raise PrivateStoreError("Falha ao gravar no armazenamento remoto.") from exc
+            # Caso contrário, cai para fallback local
+            logger.warning("Falha no remoto — usando fallback local.")
 
+    # Se estamos em Vercel e fallback local NÃO é permitido, bloqueia.
     if _IS_VERCEL and not _ALLOW_VERCEL_LOCAL_FALLBACK:
         raise PrivateStoreError(
             "Armazenamento remoto não configurado na Vercel. "
             "Defina PRIVATE_STORAGE_ID e PRIVATE_STORAGE_CREDENTIALS_JSON."
         )
 
-    logger.warning("Armazenamento remoto não configurado; usando fallback privado local.")
+    logger.info("Usando armazenamento local para submissão privada.")
     _append_local(kind, payload)
     return "local"

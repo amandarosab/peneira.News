@@ -72,10 +72,15 @@ def aplicar_headers_seguranca(response):
 # --- Rate limiting simples (sem dependência extra) ---
 def _obter_ip_real():
     """Obtém IP real do cliente, mesmo atrás de proxy reverso (Vercel/Cloudflare)."""
+    # Preferir `request.remote_addr` (ProxyFix já normaliza quando usado atrás de proxy confiável).
+    # Apenas usar X-Forwarded-For como fallback se `remote_addr` não estiver disponível.
+    remote = request.remote_addr
+    if remote:
+        return remote
     forwarded = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
     if forwarded:
         return forwarded
-    return request.remote_addr or '0.0.0.0'
+    return '0.0.0.0'
 
 # --- Rate limiter (flask-limiter) ---
 # Usa storage URI em RATE_LIMIT_STORAGE_URI (ex: redis://...) e cai para memória se não configurado
