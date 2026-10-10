@@ -24,6 +24,7 @@ FONTES_RSS = {
     ],
     "POLÍTICA": [
         {"nome": "Folha de S.Paulo", "url": "https://feeds.folha.uol.com.br/poder/rss091.xml"},
+        {"nome": "Revista piauí", "url": "https://piaui.uol.com.br/feed/"},
     ],
     "ECONOMIA": [
         {"nome": "InfoMoney", "url": "https://www.infomoney.com.br/feed/"},
